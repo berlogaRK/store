@@ -1,0 +1,20 @@
+{
+    "BERLOGA30": {
+        "type": "percent",
+        "value": 30,
+        "active": true,
+        "expires_at": null,
+        "max_uses": null,
+        "per_user_limit": 1,
+        "allowed_products": null
+    },
+    "RAXLIN4IK": {
+        "type": "fixed",
+        "value": 67,
+        "active": true,
+        "expires_at": null,
+        "max_uses": null,
+        "per_user_limit": 1,
+        "allowed_products": ["gpt_plus_1m"]
+    }
+}
