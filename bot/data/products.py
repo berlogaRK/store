@@ -35,7 +35,7 @@ PRODUCTS = [
         "После покупки запросим почту и подключим подписку.\n\n"
         "[Подробное описание товара](https://t.me/itberloga_store/4)"
         ),
-        price_rub=2,
+        price_rub=1299,
         image_path="assets/chatgpt.jpg",
     )
 ]
@@ -43,3 +43,4 @@ PRODUCTS = [
 
 def get_product(pid: str) -> Product | None:
     return next((p for p in PRODUCTS if p.id == pid), None)
+
