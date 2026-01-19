@@ -5,7 +5,7 @@ from bot.config import load_config
 from bot.handlers.start import router as start_router
 from bot.handlers.catalog import router as catalog_router
 from bot.services.crypto_pay import crypto_pay
-from bot.handlers import payments
+from bot.handlers import payments, info
 
 from bot.middlewares.users import UserTrackingMiddleware
 
@@ -20,6 +20,7 @@ async def main():
     dp.include_router(start_router)
     dp.include_router(catalog_router)
     dp.include_router(payments.router)
+    dp.include_router(info.router)
 
     await asyncio.gather(
         dp.start_polling(bot),

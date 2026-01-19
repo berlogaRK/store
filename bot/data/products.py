@@ -37,10 +37,19 @@ PRODUCTS = [
         ),
         price_rub=1299,
         image_path="assets/chatgpt.jpg",
+    ),
+        Product(
+        id="google_gemini",
+        title="Подписка Gemini Plus на месяц",
+        description=(
+        "После покупки запросим необходимые данные и подключим подписку.\n\n"
+        "[Подробное описание товара](https://t.me/itberloga_store/5)"
+        ),
+        price_rub=1099,
+        image_path="assets/gemini.jpg",
     )
 ]
 
 
 def get_product(pid: str) -> Product | None:
     return next((p for p in PRODUCTS if p.id == pid), None)
-

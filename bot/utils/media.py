@@ -1,3 +1,5 @@
 START_IMAGE = "assets/itberloga.jpg"
 CATALOG_IMAGE = "assets/catalog.jpg"
 GPT_IMAGE = "assets/chatgpt.jpg"
+INFO_IMAGE = "assets/info.jpg"
+GEMINI_IMAGE = "assets/gemini.jpg"
