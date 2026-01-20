@@ -1,6 +1,6 @@
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 from bot.keyboards.callbacks import NavCb, BuyCb
-from bot.data.products import PRODUCTS
+from bot.data.products import get_products_by_category, CATEGORIES
 
 REVIEWS_CHANNEL_URL = "https://t.me/itberloga_reviews"
 
@@ -14,15 +14,35 @@ def home_kb():
     kb.button(text="Каталог", callback_data=NavCb(page="catalog").pack())
     kb.button(text="Отзывы", url=REVIEWS_CHANNEL_URL)
     kb.button(text="Тех. поддержка", url=SUPPORT_USER_URL)
-    kb.button(text="ℹ️ Информация", callback_data=NavCb(page="info").pack())
+    kb.button(text="Информация", callback_data=NavCb(page="info").pack())
     kb.adjust(2, 1, 1)
     return kb.as_markup()
 
 def catalog_kb():
     kb = InlineKeyboardBuilder()
-    for p in PRODUCTS:
-        kb.button(text=p.title, callback_data=NavCb(page="product", payload=p.id).pack())
+
+    for c in CATEGORIES:
+        kb.button(
+            text=c.title,
+            callback_data=NavCb(page="category", payload=c.id).pack()
+        )
+
     kb.button(text="⬅ Назад", callback_data=NavCb(page="home").pack())
+    kb.adjust(1)
+    return kb.as_markup()
+
+
+def category_products_kb(category_id: str):
+    kb = InlineKeyboardBuilder()
+    products = get_products_by_category(category_id)
+
+    for p in products:
+        kb.button(
+            text=p.title,
+            callback_data=NavCb(page="product", payload=p.id).pack()
+        )
+
+    kb.button(text="⬅ Назад", callback_data=NavCb(page="catalog").pack())
     kb.adjust(1)
     return kb.as_markup()
 

@@ -2,12 +2,12 @@ from aiogram import Router, F
 from aiogram.types import CallbackQuery, Message
 
 from bot.keyboards.callbacks import NavCb, PromoCb
-from bot.keyboards.inline import home_kb, catalog_kb, only_home_kb
+from bot.keyboards.inline import home_kb, catalog_kb, category_products_kb
 from bot.keyboards.payments import payment_methods_kb
 from bot.utils.text import home_text, catalog_text, product_text
 from bot.utils.media import START_IMAGE, CATALOG_IMAGE
 from bot.utils.render import show_photo, show_text
-from bot.data.products import get_product
+from bot.data.products import get_category, get_products_by_category, get_product
 
 from bot.promos.state import USER_PROMO, AWAITING_PROMO_FOR_PRODUCT, PromoState
 from bot.promos import promo_service
@@ -152,3 +152,33 @@ async def promo_clear(cq: CallbackQuery, callback_data: PromoCb):
         USER_PROMO.pop(user_id, None)
 
     await cq.message.answer("✅ Промокод удалён. Цена вернулась к обычной.")
+
+
+@router.callback_query(NavCb.filter(F.page == "category"))
+async def go_category(cq: CallbackQuery, callback_data: NavCb):
+    await cq.answer()
+
+    category_id = callback_data.payload
+    category = get_category(category_id)
+
+    if not category:
+        await show_text(cq.message, "❌ Категория не найдена", home_kb())
+        return
+
+    products = get_products_by_category(category_id)
+
+    # если в категории 1 товар — сразу открываем его
+    if len(products) == 1:
+        product = products[0]
+        await go_product(
+            cq,
+            NavCb(page="product", payload=product.id)
+        )
+        return
+
+    # если товаров несколько — показываем список
+    await show_text(
+        message=cq.message,
+        text=f"",
+        reply_markup=category_products_kb(category_id),
+    )
