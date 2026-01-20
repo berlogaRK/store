@@ -106,8 +106,9 @@ async def pay_crypto(cq: CallbackQuery, callback_data: PayCb):
         )
 
     caption += (
-        "_Курс обновляется каждые 30 сек_\n\n"
-        "_Ссылка действительна в течение 30 минут_\n"
+        "_Курс обновляется каждые 30 сек_\n"
+        "_Ссылка действительна в течение 30 минут_\n\n"
+        "Нажимая «Оплатить», вы соглашаетесь с [условиями сервиса](https://telegra.ph/Dokumenty-servisa-IT-Berloga-Store-01-20).\n"
     )
 
     await cq.message.edit_caption(
