@@ -5,9 +5,9 @@
     "first_name": "robert",
     "last_name": null,
     "first_seen": "2026-01-11T20:01:39.160606",
-    "last_seen": "2026-01-21T18:12:36.945956",
-    "total_purchases": 2,
-    "total_spent_rub": 3
+    "last_seen": "2026-01-21T20:03:52.711784",
+    "total_purchases": 3,
+    "total_spent_rub": 5
   },
   "1835990982": {
     "id": 1835990982,
@@ -15,8 +15,8 @@
     "first_name": "raxlin4ik",
     "last_name": null,
     "first_seen": "2026-01-17T11:50:09.231128",
-    "last_seen": "2026-01-21T18:12:41.005606",
-    "total_purchases": 0,
-    "total_spent_rub": 0
+    "last_seen": "2026-01-21T20:03:54.472565",
+    "total_purchases": 1,
+    "total_spent_rub": 2
   }
 }

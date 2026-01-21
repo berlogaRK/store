@@ -13,9 +13,13 @@ def payment_groups_kb(product_id: str, has_promo: bool = False):
     )
 
     rub = PAYMENT_METHODS.get("rub")
-    if rub:
-        text = rub.title + (" 🔒" if not rub.enabled else "")
-        kb.button(text=text, callback_data="noop")
+    if rub and rub.enabled:
+        kb.button(
+            text=rub.title,
+            callback_data=PayCb(method="rub", product_id=product_id).pack()
+        )
+    else:
+        kb.button(text=(rub.title if rub else "RUB"), callback_data="noop")
 
     if has_promo:
         kb.button(
@@ -56,54 +60,6 @@ def crypto_methods_kb(product_id: str):
 
     kb.adjust(1)
     return kb.as_markup()
-
-
-
-# def payment_methods_kb(product_id: str, has_promo: bool = False):
-#     kb = InlineKeyboardBuilder()
-
-#     # кнопки способов оплаты
-#     for method in PAYMENT_METHODS.values():
-#         text = method.title
-#         if not method.enabled:
-#             text += " 🔒"
-
-#         kb.button(
-#             text=text,
-#             callback_data=PayCb(
-#                 method=method.code,
-#                 product_id=product_id
-#             ).pack()
-#         )
-
-#     # кнопка промокода
-#     if has_promo:
-#         kb.button(
-#             text="❌ Убрать промокод",
-#             callback_data=PromoCb(
-#                 action="clear",
-#                 product_id=product_id
-#             ).pack()
-#         )
-#     else:
-#         kb.button(
-#             text="🏷 Промокод",
-#             callback_data=PromoCb(
-#                 action="enter",
-#                 product_id=product_id
-#             ).pack()
-#         )
-
-#     # навигация
-#     kb.button(text="⬅ Назад", callback_data=NavCb(page="catalog").pack())
-#     kb.button(text="🏠 Главная", callback_data=NavCb(page="home").pack())
-
-#     # сетка:
-#     # 1 — способы оплаты (каждый в своей строке)
-#     # 1 — промокод
-#     # 2 — навигация
-#     kb.adjust(1, 1, 2)
-#     return kb.as_markup()
 
 
 def pay_invoice_kb(pay_url: str, product_id: str):
