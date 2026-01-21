@@ -17,3 +17,7 @@ class PromoCb(CallbackData, prefix="promo"):
 
 class NewPurchaseCb(CallbackData, prefix="new_purchase"):
     pass
+
+class PayGroupCb(CallbackData, prefix="pay_group"):
+    group: str       
+    product_id: str

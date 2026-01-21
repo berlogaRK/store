@@ -1,9 +1,9 @@
 from aiogram import Router, F
 from aiogram.types import CallbackQuery, Message
 
-from bot.keyboards.callbacks import NavCb, PromoCb
+from bot.keyboards.callbacks import NavCb, PromoCb, PayGroupCb
 from bot.keyboards.inline import home_kb, catalog_kb, category_products_kb
-from bot.keyboards.payments import payment_methods_kb
+from bot.keyboards.payments import payment_groups_kb, crypto_methods_kb
 from bot.utils.text import home_text, catalog_text, product_text
 from bot.utils.media import START_IMAGE, CATALOG_IMAGE
 from bot.utils.render import show_photo, show_text
@@ -69,14 +69,14 @@ async def go_product(cq: CallbackQuery, callback_data: NavCb):
             message=cq.message,
             photo_path=product.image_path,
             caption=text,
-            reply_markup=payment_methods_kb(product.id, has_promo=has_promo),
+            reply_markup=payment_groups_kb(product.id, has_promo=has_promo),
         )
     else:
         # Если у товара нет картинки — просто показываем текст (фото не сменится)
         await show_text(
             message=cq.message,
             text=text,
-            reply_markup=payment_methods_kb(product.id, has_promo=has_promo),
+            reply_markup=payment_groups_kb(product.id, has_promo=has_promo),
         )
 
 @router.callback_query(PromoCb.filter(F.action == "enter"))
@@ -181,4 +181,25 @@ async def go_category(cq: CallbackQuery, callback_data: NavCb):
         message=cq.message,
         text=f"",
         reply_markup=category_products_kb(category_id),
+    )
+
+@router.callback_query(PayGroupCb.filter(F.group == "crypto"))
+async def open_crypto_methods(cq: CallbackQuery, callback_data: PayGroupCb):
+    await cq.answer()
+
+    await cq.message.edit_reply_markup(
+        reply_markup=crypto_methods_kb(callback_data.product_id)
+    )
+
+@router.callback_query(NavCb.filter(F.page == "payment_groups"))
+async def back_to_payment_groups(cq: CallbackQuery, callback_data: NavCb):
+    await cq.answer()
+
+    from bot.promos.state import USER_PROMO
+
+    state = USER_PROMO.get(cq.from_user.id)
+    has_promo = bool(state and state.product_id == callback_data.payload)
+
+    await cq.message.edit_reply_markup(
+        reply_markup=payment_groups_kb(callback_data.payload, has_promo=has_promo)
     )

@@ -10,7 +10,7 @@ class PaymentMethod:
     disabled_text: str | None = None
 
 PAYMENT_METHODS = {
-    "usdt": PaymentMethod("usdt", "USDT", "💎 CryptoBot (USDT)"),
+    "usdt": PaymentMethod("usdt", "USDT", "💎 USDT (CryptoBot)"),
     "ton": PaymentMethod("ton", "TON", "🪙 TON (CryptoBot)"),
     "rub": PaymentMethod("rub", "RUB", "RUB (скоро)", enabled=False, disabled_text="💳 Оплата в рублях скоро будет доступна"),
 }
