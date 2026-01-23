@@ -7,11 +7,6 @@ from bot.payments.methods import PAYMENT_METHODS
 def payment_groups_kb(product_id: str, has_promo: bool = False):
     kb = InlineKeyboardBuilder()
 
-    kb.button(
-        text="Crypto",
-        callback_data=PayGroupCb(group="crypto", product_id=product_id).pack()
-    )
-
     rub = PAYMENT_METHODS.get("rub")
     if rub and rub.enabled:
         kb.button(
@@ -20,6 +15,11 @@ def payment_groups_kb(product_id: str, has_promo: bool = False):
         )
     else:
         kb.button(text=(rub.title if rub else "RUB"), callback_data="noop")
+
+    kb.button(
+        text="Crypto (TON / USDT)",
+        callback_data=PayGroupCb(group="crypto", product_id=product_id).pack()
+    )
 
     if has_promo:
         kb.button(

@@ -54,22 +54,23 @@ async def _finalize_purchase(
 
     await bot.send_message(
         buyer_id,
-        "Оплата прошла успешно!\n\n"
-        f"Товар: {product.title if product else 'Неизвестно'}\n"
-        f"Тикет: #{ticket_id}\n\n"
-        "Наш менеджер свяжется с вами для подключения подписки.\n"
+        "✅ *Оплата прошла успешно!*\n\n"
+        f"📦 *Товар:* {product.title if product else 'Неизвестно'}\n"
+        f"🧾 *Тикет:* #{ticket_id}\n\n"
+        "👨‍💻 Наш менеджер свяжется с вами для подключения подписки.\n\n"
         "Если долго не отвечают — напишите в поддержку.",
+        parse_mode="Markdown",
         reply_markup=purchase_done_kb(),
     )
 
     paid_time = datetime.now().strftime("%d.%m.%Y %H:%M")
 
     manager_text = (
-        "НОВАЯ ОПЛАТА\n"
-        f"Время: {paid_time}\n\n"
-        f"Тикет: #{ticket_id}\n"
-        f"Товар: {product.title if product else 'Неизвестно'}\n"
-        f"Сумма: {amount_asset} {asset} "
+        "🆕 НОВАЯ ОПЛАТА\n"
+        f"🕒 Время: {paid_time}\n\n"
+        f"🧾 Тикет: #{ticket_id}\n"
+        f"📦 Товар: {product.title if product else 'Неизвестно'}\n"
+        f"💰 Сумма: {amount_asset} {asset} "
         f"(≈ {final_price_rub if final_price_rub else (product.price_rub if product else '—')} ₽)\n"
     )
 
@@ -77,8 +78,8 @@ async def _finalize_purchase(
         manager_text += f"Промокод: {promo_code}\n"
 
     manager_text += (
-        f"\nПокупатель: @{buyer_username or '—'}\n"
-        f"User ID: {buyer_id}"
+    f"\n👤 Покупатель: @{buyer_username or '—'}\n"
+    f"🆔 User ID: [{buyer_id}](tg://user?id={buyer_id})"
     )
 
     await notify_managers(bot, manager_text)
@@ -202,8 +203,8 @@ async def pay_handler(cq: CallbackQuery, callback_data: PayCb):
         })
 
         # можно поставить любые public URL
-        return_url = "https://telegra.ph/Dokumenty-servisa-IT-Berloga-Store-01-20"
-        failed_url = "https://telegra.ph/Dokumenty-servisa-IT-Berloga-Store-01-20"
+        return_url = "https://t.me/berloga_programmistov"
+        failed_url = "https://t.me/berloga_programmistov"
 
         resp = await platega_pay.create_sbp_payment(
             amount_rub=price_rub,
