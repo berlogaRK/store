@@ -16,5 +16,14 @@
         "max_uses": null,
         "per_user_limit": 1,
         "allowed_products": ["gpt_plus_1m"]
+    },
+    "RAINER10": {
+        "type": "percent",
+        "value": 10,
+        "active": true,
+        "expires_at": null,
+        "max_uses": null,
+        "per_user_limit": null,
+        "allowed_products": null
     }
 }
