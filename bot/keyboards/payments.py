@@ -21,6 +21,13 @@ def payment_groups_kb(product_id: str, has_promo: bool = False):
         callback_data=PayGroupCb(group="crypto", product_id=product_id).pack()
     )
 
+    eu = PAYMENT_METHODS.get("eur")
+    if eu:
+        kb.button(
+            text=eu.title,
+            callback_data=PayCb(method="eur", product_id=product_id).pack()
+        )
+
     if has_promo:
         kb.button(
             text="❌ Убрать промокод",
@@ -35,7 +42,7 @@ def payment_groups_kb(product_id: str, has_promo: bool = False):
     kb.button(text="⬅ Назад", callback_data=NavCb(page="catalog").pack())
     kb.button(text="🏠 Главная", callback_data=NavCb(page="home").pack())
 
-    kb.adjust(1, 1, 1, 2)
+    kb.adjust(1, 1, 2, 2)
     return kb.as_markup()
 
 

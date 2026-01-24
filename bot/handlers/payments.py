@@ -174,7 +174,19 @@ async def _poll_platega_status(tx_id: str, bot):
 
 @router.callback_query(PayCb.filter())
 async def pay_handler(cq: CallbackQuery, callback_data: PayCb):
-    await cq.answer()
+    # await cq.answer() пока карта еу не работает так сделаем, потом вернем
+    method = PAYMENT_METHODS.get(callback_data.method)
+
+    if not method:
+        await cq.answer("Неизвестный способ оплаты", show_alert=True)
+        return
+
+    if not method.enabled:
+        await cq.answer(method.disabled_text, show_alert=True)
+        return
+    # пока еу карта не работает, так оставим блок кода
+
+
 
     product = get_product(callback_data.product_id)
     if not product:

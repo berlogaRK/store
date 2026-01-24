@@ -13,4 +13,5 @@ PAYMENT_METHODS = {
     "usdt": PaymentMethod("usdt", "USDT", "💎 USDT (CryptoBot)"),
     "ton": PaymentMethod("ton", "TON", "🪙 TON (CryptoBot)"),
     "rub": PaymentMethod("rub", "RUB", "RUB (СБП)"),
+    "eur": PaymentMethod("eur", "EUR", "Visa / Mastercard (Скоро)", False, "💳 Оплата картами Visa / Mastercard (EU)\n\nЭтот способ оплаты находится в разработке и скоро будет доступен.\n\nСпасибо за ожидание ❤️")
 }
