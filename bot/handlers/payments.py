@@ -44,6 +44,7 @@ def _compute_price_with_promo(user_id: int, product) -> tuple[int, str | None]:
 
 async def _finalize_purchase(
     bot,
+    ticket_id: str,
     buyer_id: int,
     buyer_username: str | None,
     product_id: str,
@@ -53,7 +54,7 @@ async def _finalize_purchase(
     promo_code: str | None,
 ):
     product = get_product(product_id)
-    ticket_id = uuid.uuid4().hex[:8].upper()
+    # ticket_id = uuid.uuid4().hex[:8].upper()
 
     await bot.send_message(
         buyer_id,
@@ -120,7 +121,8 @@ async def _poll_platega_status(tx_id: str, bot):
         meta = platega_orders.get(tx_id)
         if not meta:
             return
-
+    
+    ticket_id = meta["ticket_id"]
     buyer_id = meta["buyer_id"]
     buyer_username = meta.get("buyer_username")
     product_id = meta["product_id"]
@@ -149,6 +151,7 @@ async def _poll_platega_status(tx_id: str, bot):
 
             await _finalize_purchase(
                 bot=bot,
+                ticket_id=ticket_id,
                 buyer_id=buyer_id,
                 buyer_username=buyer_username,
                 product_id=product_id,
@@ -222,7 +225,11 @@ async def pay_handler(cq: CallbackQuery, callback_data: PayCb):
 
     # === RUB (Platega) ===
     if method.code == "rub":
+
+        ticket_id = uuid.uuid4().hex[:8].upper()
+
         payload = json.dumps({
+            "ticket_id": ticket_id,
             "product_id": product.id,
             "buyer_id": cq.from_user.id,
             "buyer_username": cq.from_user.username,
@@ -235,7 +242,7 @@ async def pay_handler(cq: CallbackQuery, callback_data: PayCb):
 
         resp = await platega_pay.create_sbp_payment(
             amount_rub=price_rub,
-            description=product.title,
+            description=f"{product.title} | Ticket #{ticket_id}",
             payload=payload,
             return_url=return_url,
             failed_url=failed_url,
@@ -253,6 +260,7 @@ async def pay_handler(cq: CallbackQuery, callback_data: PayCb):
         platega_orders.put(
             tx_id,
             PendingPlategaOrder(
+                ticket_id=ticket_id,
                 buyer_id=cq.from_user.id,
                 buyer_username=cq.from_user.username,
                 product_id=product.id,
@@ -264,6 +272,7 @@ async def pay_handler(cq: CallbackQuery, callback_data: PayCb):
 
         # 2) сохраняем в память (для удаления сообщения с кнопкой и быстрого polling)
         _PENDING_PLATEGA[tx_id] = {
+            "ticket_id": ticket_id,
             "buyer_id": cq.from_user.id,
             "buyer_username": cq.from_user.username,
             "product_id": product.id,

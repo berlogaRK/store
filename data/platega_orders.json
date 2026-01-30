@@ -1,1 +1,29 @@
-{}
+{
+  "9b767f06-ae24-41db-bf3c-42596afd93d9": {
+    "ticket_id": "8EFBAA14",
+    "buyer_id": 1835990982,
+    "buyer_username": "raxlin4ik",
+    "product_id": "gpt_plus_1m",
+    "promo_code": null,
+    "final_price_rub": 1,
+    "created_at": "2026-01-30T19:58:34.143909"
+  },
+  "d6a82b4d-bcaa-47c2-973b-c6189cd0e6ed": {
+    "ticket_id": "274D0F62",
+    "buyer_id": 1835990982,
+    "buyer_username": "raxlin4ik",
+    "product_id": "gpt_plus_1m",
+    "promo_code": null,
+    "final_price_rub": 1,
+    "created_at": "2026-01-30T21:53:15.185777"
+  },
+  "96aee8e8-ae68-4529-9ada-1ad1a829c51c": {
+    "ticket_id": "BAE14A39",
+    "buyer_id": 1835990982,
+    "buyer_username": "raxlin4ik",
+    "product_id": "gpt_plus_1m",
+    "promo_code": null,
+    "final_price_rub": 1,
+    "created_at": "2026-01-30T21:53:47.131742"
+  }
+}

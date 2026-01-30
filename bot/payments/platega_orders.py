@@ -5,6 +5,7 @@ from typing import Any
 
 @dataclass
 class PendingPlategaOrder:
+    ticket_id: str
     buyer_id: int
     buyer_username: str | None
     product_id: str
