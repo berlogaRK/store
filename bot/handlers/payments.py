@@ -21,9 +21,12 @@ from bot.users import user_service
 from bot.utils.notify import notify_managers
 from bot.utils.tickets import send_ticket_to_group
 
-router = Router()
+from bot.payments.platega_orders import PlategaOrders, PendingPlategaOrder
 
-# простая память для активных рублёвых платежей (на первое время)
+router = Router()
+platega_orders = PlategaOrders()
+
+# простая память для активных рублёвых платежей (ускоритель; НЕ источник истины)
 _PENDING_PLATEGA: dict[str, dict] = {}
 
 
@@ -78,8 +81,8 @@ async def _finalize_purchase(
         manager_text += f"Промокод: {promo_code}\n"
 
     manager_text += (
-    f"\n👤 Покупатель: @{buyer_username or '—'}\n"
-    f"🆔 User ID: [{buyer_id}](tg://user?id={buyer_id})"
+        f"\n👤 Покупатель: @{buyer_username or '—'}\n"
+        f"🆔 User ID: [{buyer_id}](tg://user?id={buyer_id})"
     )
 
     await notify_managers(bot, manager_text)
@@ -108,11 +111,15 @@ async def _finalize_purchase(
 async def _poll_platega_status(tx_id: str, bot):
     """
     Проверяем /transaction/{id} пока не станет CONFIRMED / CANCELED / CHARGEBACK.
-    По докам успешный — CONFIRMED, неуспешный — CANCELED, возврат — CHARGEBACK. :contentReference[oaicite:5]{index=5}
+    Успешный — CONFIRMED, неуспешный — CANCELED, возврат — CHARGEBACK.
     """
+    # Сначала берём мету из памяти (там есть message_chat_id/message_id),
+    # если нет — пробуем поднять из файла (переживает рестарты; но без message_*).
     meta = _PENDING_PLATEGA.get(tx_id)
     if not meta:
-        return
+        meta = platega_orders.get(tx_id)
+        if not meta:
+            return
 
     buyer_id = meta["buyer_id"]
     buyer_username = meta.get("buyer_username")
@@ -122,8 +129,8 @@ async def _poll_platega_status(tx_id: str, bot):
     message_chat_id = meta.get("message_chat_id")
     message_id = meta.get("message_id")
 
-    # 15 минут (как expiresIn в примере), проверка раз в 5 секунд
-    for _ in range(15 * 60 // 5):
+    # 25 минут, проверка раз в 5 секунд
+    for _ in range(30 * 60 // 5):
         try:
             st = await platega_pay.get_transaction(tx_id)
         except Exception:
@@ -150,31 +157,43 @@ async def _poll_platega_status(tx_id: str, bot):
                 final_price_rub=final_price_rub,
                 promo_code=promo_code,
             )
+
+            # удаляем pending и из памяти, и из файла (чтобы webhook не обработал второй раз)
             _PENDING_PLATEGA.pop(tx_id, None)
+            platega_orders.pop(tx_id)
             return
 
         if status in ("CANCELED", "CHARGEBACK"):
-            # можно уведомить пользователя
             try:
-                await bot.send_message(buyer_id, "Платёж не завершён (отменён/возврат). Попробуйте ещё раз.")
+                await bot.send_message(
+                    buyer_id,
+                    "Платёж не завершён (отменён/возврат). Попробуйте ещё раз."
+                )
             except Exception:
                 pass
+
             _PENDING_PLATEGA.pop(tx_id, None)
+            platega_orders.pop(tx_id)
             return
 
         await asyncio.sleep(5)
 
-    # таймаут
+    # таймаут polling (не удаляем из файла — платёж может подтвердиться позже, webhook догонит)
     _PENDING_PLATEGA.pop(tx_id, None)
     try:
-        await bot.send_message(buyer_id, "Время оплаты истекло. Откройте товар и создайте новый платёж.")
+        await bot.send_message(
+            buyer_id,
+            "⌛️ Ссылка на оплату устарела.\n\n"
+            "Если вы *уже оплатили* — ничего делать не нужно, мы проверим оплату автоматически.\n"
+            "Если не оплачивали — откройте товар и создайте новый платёж.\n\n"
+            "По всем вопросам смело обращайтесь в поддержку!"
+        )
     except Exception:
         pass
 
 
 @router.callback_query(PayCb.filter())
 async def pay_handler(cq: CallbackQuery, callback_data: PayCb):
-    # await cq.answer() пока карта еу не работает так сделаем, потом вернем
     method = PAYMENT_METHODS.get(callback_data.method)
 
     if not method:
@@ -184,9 +203,6 @@ async def pay_handler(cq: CallbackQuery, callback_data: PayCb):
     if not method.enabled:
         await cq.answer(method.disabled_text, show_alert=True)
         return
-    # пока еу карта не работает, так оставим блок кода
-
-
 
     product = get_product(callback_data.product_id)
     if not product:
@@ -214,7 +230,6 @@ async def pay_handler(cq: CallbackQuery, callback_data: PayCb):
             "final_price_rub": price_rub,
         })
 
-        # можно поставить любые public URL
         return_url = "https://t.me/berloga_programmistov"
         failed_url = "https://t.me/berloga_programmistov"
 
@@ -234,7 +249,20 @@ async def pay_handler(cq: CallbackQuery, callback_data: PayCb):
             await cq.answer("Не удалось создать платёж. Попробуйте ещё раз.", show_alert=True)
             return
 
-        # сохраним в память и запустим polling
+        # 1) сохраняем pending в файл (переживает рестарт/падение; нужно для webhook)
+        platega_orders.put(
+            tx_id,
+            PendingPlategaOrder(
+                buyer_id=cq.from_user.id,
+                buyer_username=cq.from_user.username,
+                product_id=product.id,
+                promo_code=promo_code,
+                final_price_rub=price_rub,
+                created_at=datetime.utcnow().isoformat(),
+            )
+        )
+
+        # 2) сохраняем в память (для удаления сообщения с кнопкой и быстрого polling)
         _PENDING_PLATEGA[tx_id] = {
             "buyer_id": cq.from_user.id,
             "buyer_username": cq.from_user.username,
@@ -244,6 +272,8 @@ async def pay_handler(cq: CallbackQuery, callback_data: PayCb):
             "message_chat_id": cq.message.chat.id if cq.message else None,
             "message_id": cq.message.message_id if cq.message else None,
         }
+
+        # polling можно оставить как “ускоритель”; webhook будет надёжным бэкапом
         asyncio.create_task(_poll_platega_status(tx_id, cq.bot))
 
         caption = (
@@ -326,7 +356,6 @@ async def pay_handler(cq: CallbackQuery, callback_data: PayCb):
         reply_markup=pay_invoice_kb(invoice.bot_invoice_url, product.id),
         parse_mode="Markdown",
     )
-
 
 
 @crypto_pay.invoice_paid()

@@ -9,6 +9,8 @@ from bot.handlers import payments, info
 
 from bot.middlewares.users import UserTrackingMiddleware
 
+from bot.webhooks.platega_webhook import start_platega_webhook_server
+
 async def main():
     cfg = load_config()
     bot = Bot(token=cfg.token)
@@ -25,6 +27,7 @@ async def main():
     await asyncio.gather(
         dp.start_polling(bot),
         crypto_pay.start_polling(),
+        start_platega_webhook_server(bot, host="0.0.0.0", port=8080),
     )
 if __name__ == "__main__":
     asyncio.run(main())
