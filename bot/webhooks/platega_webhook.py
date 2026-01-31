@@ -48,9 +48,16 @@ async def platega_webhook(request: web.Request) -> web.Response:
 
     return web.json_response({})
 
-async def start_platega_webhook_server(bot, host="0.0.0.0", port=8080):
+async def start_platega_webhook_server(
+    bot,
+    pg_pool=None,
+    host="0.0.0.0",
+    port=8080,
+):
     app = web.Application()
     app["bot"] = bot
+    app["pg_pool"] = pg_pool
+
     app.router.add_post("/webhooks/platega", platega_webhook)
 
     runner = web.AppRunner(app)
@@ -58,6 +65,6 @@ async def start_platega_webhook_server(bot, host="0.0.0.0", port=8080):
     site = web.TCPSite(runner, host=host, port=port)
     await site.start()
 
-    # держим сервер живым
+    # держим корутину живой
     while True:
-        await web.asyncio.sleep(3600)
+        await asyncio.sleep(3600)

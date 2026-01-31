@@ -42,7 +42,7 @@ async def main():
     await pool.execute("select 1;")
     print("PG: OK")
 
-    # === ВАЖНО: прокидываем pool в сервисы ===
+    # === прокидываем pool в сервисы ===
     payments.set_pg_pool(pool)
     set_promos_pg_pool(pool)
 
@@ -56,18 +56,21 @@ async def main():
     dp.include_router(payments.router)
     dp.include_router(info.router)
 
-    # --- run ---
     try:
-        await asyncio.gather(
-            dp.start_polling(bot),
-            crypto_pay.start_polling(),
+        # фоновые задачи
+        asyncio.create_task(crypto_pay.start_polling())
+        asyncio.create_task(
             start_platega_webhook_server(
                 bot,
                 pg_pool=pool,
                 host="0.0.0.0",
                 port=8080,
-            ),
+            )
         )
+
+        # главный процесс (блокирующий)
+        await dp.start_polling(bot)
+
     finally:
         await pool.close()
 
