@@ -5,7 +5,7 @@
     "first_name": "robert",
     "last_name": null,
     "first_seen": "2026-01-11T20:01:39.160606",
-    "last_seen": "2026-01-30T19:41:49.672792",
+    "last_seen": "2026-01-31T12:35:33.418520",
     "total_purchases": 3,
     "total_spent_rub": 5
   },
@@ -15,7 +15,7 @@
     "first_name": "raxlin4ik",
     "last_name": null,
     "first_seen": "2026-01-17T11:50:09.231128",
-    "last_seen": "2026-01-27T18:11:31.813923",
+    "last_seen": "2026-01-31T13:18:22.052554",
     "total_purchases": 4,
     "total_spent_rub": 8
   },
@@ -475,7 +475,7 @@
     "first_name": "Markuss",
     "last_name": null,
     "first_seen": "2026-01-25T17:41:07.532516",
-    "last_seen": "2026-01-26T18:26:39.463708",
+    "last_seen": "2026-01-30T23:36:34.305267",
     "total_purchases": 0,
     "total_spent_rub": 0
   },
@@ -3156,6 +3156,266 @@
     "last_name": null,
     "first_seen": "2026-01-30T19:52:44.611516",
     "last_seen": "2026-01-30T19:52:44.611516",
+    "total_purchases": 0,
+    "total_spent_rub": 0
+  },
+  "1002444594": {
+    "id": 1002444594,
+    "username": "ivantroshin12",
+    "first_name": "Ivan",
+    "last_name": null,
+    "first_seen": "2026-01-31T03:05:54.697976",
+    "last_seen": "2026-01-31T03:06:05.381197",
+    "total_purchases": 0,
+    "total_spent_rub": 0
+  },
+  "533054852": {
+    "id": 533054852,
+    "username": null,
+    "first_name": "Антон",
+    "last_name": null,
+    "first_seen": "2026-01-31T03:08:57.033296",
+    "last_seen": "2026-01-31T03:09:22.151693",
+    "total_purchases": 0,
+    "total_spent_rub": 0
+  },
+  "929452686": {
+    "id": 929452686,
+    "username": "higzii",
+    "first_name": "Andrew",
+    "last_name": null,
+    "first_seen": "2026-01-31T03:46:45.419670",
+    "last_seen": "2026-01-31T03:47:01.944731",
+    "total_purchases": 0,
+    "total_spent_rub": 0
+  },
+  "5929915356": {
+    "id": 5929915356,
+    "username": null,
+    "first_name": ".",
+    "last_name": null,
+    "first_seen": "2026-01-31T03:50:00.129028",
+    "last_seen": "2026-01-31T03:50:03.466015",
+    "total_purchases": 0,
+    "total_spent_rub": 0
+  },
+  "7540126724": {
+    "id": 7540126724,
+    "username": "andrewruss1a",
+    "first_name": "Андрей",
+    "last_name": null,
+    "first_seen": "2026-01-31T03:50:42.903111",
+    "last_seen": "2026-01-31T03:50:42.903111",
+    "total_purchases": 0,
+    "total_spent_rub": 0
+  },
+  "6631396649": {
+    "id": 6631396649,
+    "username": null,
+    "first_name": "AUSLÄNDER",
+    "last_name": null,
+    "first_seen": "2026-01-31T03:51:36.391685",
+    "last_seen": "2026-01-31T03:51:36.391685",
+    "total_purchases": 0,
+    "total_spent_rub": 0
+  },
+  "1364119148": {
+    "id": 1364119148,
+    "username": "ernaar_0",
+    "first_name": "ernaar_0",
+    "last_name": null,
+    "first_seen": "2026-01-31T04:58:53.295824",
+    "last_seen": "2026-01-31T04:58:53.295824",
+    "total_purchases": 0,
+    "total_spent_rub": 0
+  },
+  "1110633348": {
+    "id": 1110633348,
+    "username": "tokkanai",
+    "first_name": "Tokkanai",
+    "last_name": null,
+    "first_seen": "2026-01-31T05:13:31.111184",
+    "last_seen": "2026-01-31T05:13:31.111184",
+    "total_purchases": 0,
+    "total_spent_rub": 0
+  },
+  "5062049464": {
+    "id": 5062049464,
+    "username": "forthewalking",
+    "first_name": "Im",
+    "last_name": null,
+    "first_seen": "2026-01-31T05:47:45.072830",
+    "last_seen": "2026-01-31T05:47:45.072830",
+    "total_purchases": 0,
+    "total_spent_rub": 0
+  },
+  "1526610695": {
+    "id": 1526610695,
+    "username": "devneutron",
+    "first_name": "using System.Neutron;",
+    "last_name": null,
+    "first_seen": "2026-01-31T05:48:35.873213",
+    "last_seen": "2026-01-31T05:48:46.577818",
+    "total_purchases": 0,
+    "total_spent_rub": 0
+  },
+  "706903610": {
+    "id": 706903610,
+    "username": "alv_fm",
+    "first_name": "Александр",
+    "last_name": "Алейников РГ",
+    "first_seen": "2026-01-31T06:12:37.296735",
+    "last_seen": "2026-01-31T06:12:37.296735",
+    "total_purchases": 0,
+    "total_spent_rub": 0
+  },
+  "911194886": {
+    "id": 911194886,
+    "username": "passse4nik",
+    "first_name": "Даниил",
+    "last_name": null,
+    "first_seen": "2026-01-31T06:29:38.886548",
+    "last_seen": "2026-01-31T06:29:38.886548",
+    "total_purchases": 0,
+    "total_spent_rub": 0
+  },
+  "5517132193": {
+    "id": 5517132193,
+    "username": "timofej461",
+    "first_name": "Тимофей",
+    "last_name": null,
+    "first_seen": "2026-01-31T07:12:41.783582",
+    "last_seen": "2026-01-31T07:12:48.958760",
+    "total_purchases": 0,
+    "total_spent_rub": 0
+  },
+  "591338394": {
+    "id": 591338394,
+    "username": "eXistenZ7",
+    "first_name": "Dmitrii",
+    "last_name": null,
+    "first_seen": "2026-01-31T07:15:53.372683",
+    "last_seen": "2026-01-31T07:16:27.843687",
+    "total_purchases": 0,
+    "total_spent_rub": 0
+  },
+  "971508198": {
+    "id": 971508198,
+    "username": "x1xon",
+    "first_name": "Миша",
+    "last_name": null,
+    "first_seen": "2026-01-31T08:15:52.721254",
+    "last_seen": "2026-01-31T08:16:10.550879",
+    "total_purchases": 0,
+    "total_spent_rub": 0
+  },
+  "991046535": {
+    "id": 991046535,
+    "username": "solarrm",
+    "first_name": "Roma",
+    "last_name": null,
+    "first_seen": "2026-01-31T08:30:26.298728",
+    "last_seen": "2026-01-31T08:30:26.298728",
+    "total_purchases": 0,
+    "total_spent_rub": 0
+  },
+  "518589515": {
+    "id": 518589515,
+    "username": "avlisa06",
+    "first_name": "Алина",
+    "last_name": "Васильева",
+    "first_seen": "2026-01-31T08:34:31.337634",
+    "last_seen": "2026-01-31T08:34:31.337634",
+    "total_purchases": 0,
+    "total_spent_rub": 0
+  },
+  "8095346561": {
+    "id": 8095346561,
+    "username": "Yusuf_Guseinov",
+    "first_name": "Юсуф",
+    "last_name": "Гусейнов",
+    "first_seen": "2026-01-31T09:54:57.504176",
+    "last_seen": "2026-01-31T09:57:24.693346",
+    "total_purchases": 0,
+    "total_spent_rub": 0
+  },
+  "8296307489": {
+    "id": 8296307489,
+    "username": "makaridinvm",
+    "first_name": "Влад",
+    "last_name": null,
+    "first_seen": "2026-01-31T10:31:53.215212",
+    "last_seen": "2026-01-31T10:31:53.215212",
+    "total_purchases": 0,
+    "total_spent_rub": 0
+  },
+  "5604106721": {
+    "id": 5604106721,
+    "username": null,
+    "first_name": "Глеб",
+    "last_name": "Севастьянов",
+    "first_seen": "2026-01-31T10:56:13.014006",
+    "last_seen": "2026-01-31T10:56:13.014006",
+    "total_purchases": 0,
+    "total_spent_rub": 0
+  },
+  "5787506182": {
+    "id": 5787506182,
+    "username": "unknowwn5262836",
+    "first_name": "Неизвестный",
+    "last_name": null,
+    "first_seen": "2026-01-31T11:23:45.946308",
+    "last_seen": "2026-01-31T11:24:01.672208",
+    "total_purchases": 0,
+    "total_spent_rub": 0
+  },
+  "1469279438": {
+    "id": 1469279438,
+    "username": "Deathaderr",
+    "first_name": "𝔀𝓲𝓷𝓬",
+    "last_name": null,
+    "first_seen": "2026-01-31T11:47:31.253509",
+    "last_seen": "2026-01-31T11:47:47.687912",
+    "total_purchases": 0,
+    "total_spent_rub": 0
+  },
+  "1842011167": {
+    "id": 1842011167,
+    "username": "WinterArc2025",
+    "first_name": "Гагик",
+    "last_name": null,
+    "first_seen": "2026-01-31T11:49:04.514999",
+    "last_seen": "2026-01-31T11:49:04.514999",
+    "total_purchases": 0,
+    "total_spent_rub": 0
+  },
+  "1066300592": {
+    "id": 1066300592,
+    "username": "Garnlzerx",
+    "first_name": "Konstantin",
+    "last_name": null,
+    "first_seen": "2026-01-31T12:08:36.102383",
+    "last_seen": "2026-01-31T12:08:50.333335",
+    "total_purchases": 0,
+    "total_spent_rub": 0
+  },
+  "930146326": {
+    "id": 930146326,
+    "username": "lIybaby",
+    "first_name": "Kareеm",
+    "last_name": "Bond ⁵²",
+    "first_seen": "2026-01-31T12:18:04.457252",
+    "last_seen": "2026-01-31T12:18:32.701246",
+    "total_purchases": 0,
+    "total_spent_rub": 0
+  },
+  "5424097434": {
+    "id": 5424097434,
+    "username": "GoURNDeaQ",
+    "first_name": "БИГБАЛЛСКЛАБ",
+    "last_name": null,
+    "first_seen": "2026-01-31T13:36:34.371320",
+    "last_seen": "2026-01-31T13:36:34.371320",
     "total_purchases": 0,
     "total_spent_rub": 0
   }

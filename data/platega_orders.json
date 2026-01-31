@@ -25,5 +25,14 @@
     "promo_code": null,
     "final_price_rub": 1,
     "created_at": "2026-01-30T21:53:47.131742"
+  },
+  "086debf1-b2fd-43b7-be69-6ad794c6f615": {
+    "ticket_id": "E7018F2A",
+    "buyer_id": 944394039,
+    "buyer_username": "robertokkkk",
+    "product_id": "gpt_plus_25d",
+    "promo_code": null,
+    "final_price_rub": 1299,
+    "created_at": "2026-01-30T23:34:54.977844"
   }
 }
