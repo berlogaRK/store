@@ -15,6 +15,9 @@ from bot.webhooks.platega_webhook import start_platega_webhook_server
 
 from bot.db.pool import PgConfig, create_pool
 
+# ВАЖНО: импортируем setter, но НЕ вызываем его здесь
+from bot.promos import set_pg_pool as set_promos_pg_pool
+
 
 async def main():
     cfg = load_config()
@@ -35,12 +38,13 @@ async def main():
     pool = await create_pool(pg_cfg)
     dp["db_pool"] = pool
 
-    # тест (потом уберём)
+    # тест соединения (потом уберём)
     await pool.execute("select 1;")
     print("PG: OK")
 
-    # === ВАЖНО: прокидываем pool в payments ===
+    # === ВАЖНО: прокидываем pool в сервисы ===
     payments.set_pg_pool(pool)
+    set_promos_pg_pool(pool)
 
     # --- middlewares ---
     dp.message.middleware(UserTrackingMiddleware())
@@ -57,7 +61,6 @@ async def main():
         await asyncio.gather(
             dp.start_polling(bot),
             crypto_pay.start_polling(),
-            # === ВАЖНО: передаём pool в webhook ===
             start_platega_webhook_server(
                 bot,
                 pg_pool=pool,
