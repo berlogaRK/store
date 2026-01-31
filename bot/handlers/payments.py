@@ -23,6 +23,22 @@ from bot.utils.tickets import send_ticket_to_group
 
 from bot.payments.platega_orders import PlategaOrders, PendingPlategaOrder
 
+# === PG payments ===
+import asyncpg
+from bot.payments.pg_storage import PgPaymentsStorage, PaymentCreate
+
+_PG_POOL: asyncpg.Pool | None = None
+
+
+def set_pg_pool(pool: asyncpg.Pool) -> None:
+    global _PG_POOL
+    _PG_POOL = pool
+
+
+def _pg_payments() -> PgPaymentsStorage | None:
+    return PgPaymentsStorage(_PG_POOL) if _PG_POOL else None
+
+
 router = Router()
 platega_orders = PlategaOrders()
 
@@ -44,17 +60,19 @@ def _compute_price_with_promo(user_id: int, product) -> tuple[int, str | None]:
 
 async def _finalize_purchase(
     bot,
-    ticket_id: str,
-    buyer_id: int,
-    buyer_username: str | None,
-    product_id: str,
-    amount_asset: str,
-    asset: str,
-    final_price_rub: int | None,
-    promo_code: str | None,
+    ticket_id: str | None = None,
+    buyer_id: int = 0,
+    buyer_username: str | None = None,
+    product_id: str = "",
+    amount_asset: str = "",
+    asset: str = "",
+    final_price_rub: int | None = None,
+    promo_code: str | None = None,
 ):
     product = get_product(product_id)
-    # ticket_id = uuid.uuid4().hex[:8].upper()
+
+    if not ticket_id:
+        ticket_id = uuid.uuid4().hex[:8].upper()
 
     await bot.send_message(
         buyer_id,
@@ -110,18 +128,10 @@ async def _finalize_purchase(
 
 
 async def _poll_platega_status(tx_id: str, bot):
-    """
-    Проверяем /transaction/{id} пока не станет CONFIRMED / CANCELED / CHARGEBACK.
-    Успешный — CONFIRMED, неуспешный — CANCELED, возврат — CHARGEBACK.
-    """
-    # Сначала берём мету из памяти (там есть message_chat_id/message_id),
-    # если нет — пробуем поднять из файла (переживает рестарты; но без message_*).
-    meta = _PENDING_PLATEGA.get(tx_id)
+    meta = _PENDING_PLATEGA.get(tx_id) or platega_orders.get(tx_id)
     if not meta:
-        meta = platega_orders.get(tx_id)
-        if not meta:
-            return
-    
+        return
+
     ticket_id = meta["ticket_id"]
     buyer_id = meta["buyer_id"]
     buyer_username = meta.get("buyer_username")
@@ -131,7 +141,6 @@ async def _poll_platega_status(tx_id: str, bot):
     message_chat_id = meta.get("message_chat_id")
     message_id = meta.get("message_id")
 
-    # 25 минут, проверка раз в 5 секунд
     for _ in range(30 * 60 // 5):
         try:
             st = await platega_pay.get_transaction(tx_id)
@@ -142,11 +151,17 @@ async def _poll_platega_status(tx_id: str, bot):
         status = (st.get("status") or "").upper()
 
         if status == "CONFIRMED":
-            # можно удалить сообщение с кнопкой оплаты (если есть)
             if message_chat_id and message_id:
                 try:
                     await bot.delete_message(message_chat_id, message_id)
                 except TelegramBadRequest:
+                    pass
+
+            pg = _pg_payments()
+            if pg:
+                try:
+                    await pg.mark_paid(uuid.UUID(str(tx_id)))
+                except Exception:
                     pass
 
             await _finalize_purchase(
@@ -161,12 +176,18 @@ async def _poll_platega_status(tx_id: str, bot):
                 promo_code=promo_code,
             )
 
-            # удаляем pending и из памяти, и из файла (чтобы webhook не обработал второй раз)
             _PENDING_PLATEGA.pop(tx_id, None)
             platega_orders.pop(tx_id)
             return
 
         if status in ("CANCELED", "CHARGEBACK"):
+            pg = _pg_payments()
+            if pg:
+                try:
+                    await pg.mark_expired(uuid.UUID(str(tx_id)))
+                except Exception:
+                    pass
+
             try:
                 await bot.send_message(
                     buyer_id,
@@ -181,52 +202,27 @@ async def _poll_platega_status(tx_id: str, bot):
 
         await asyncio.sleep(5)
 
-    # таймаут polling (не удаляем из файла — платёж может подтвердиться позже, webhook догонит)
     _PENDING_PLATEGA.pop(tx_id, None)
-    try:
-        await bot.send_message(
-            buyer_id,
-            "⌛️ Ссылка на оплату устарела.\n\n"
-            "Если вы *уже оплатили* — ничего делать не нужно, мы проверим оплату автоматически.\n"
-            "Если не оплачивали — откройте товар и создайте новый платёж.\n\n"
-            "По всем вопросам смело обращайтесь в поддержку!"
-        )
-    except Exception:
-        pass
 
 
 @router.callback_query(PayCb.filter())
 async def pay_handler(cq: CallbackQuery, callback_data: PayCb):
     method = PAYMENT_METHODS.get(callback_data.method)
-
-    if not method:
-        await cq.answer("Неизвестный способ оплаты", show_alert=True)
-        return
-
-    if not method.enabled:
-        await cq.answer(method.disabled_text, show_alert=True)
+    if not method or not method.enabled:
+        await cq.answer("Способ оплаты недоступен", show_alert=True)
         return
 
     product = get_product(callback_data.product_id)
     if not product:
-        await cq.message.answer("Товар не найден", show_alert=True)
-        return
-
-    method = PAYMENT_METHODS.get(callback_data.method)
-    if not method:
-        await cq.message.answer("Неизвестный способ оплаты", show_alert=True)
-        return
-
-    if not method.enabled:
-        await cq.answer(method.disabled_text or "Способ оплаты недоступен", show_alert=True)
+        await cq.answer("Товар не найден", show_alert=True)
         return
 
     price_rub, promo_code = _compute_price_with_promo(cq.from_user.id, product)
 
-    # === RUB (Platega) ===
+    # === RUB / PLATEGA ===
     if method.code == "rub":
-
         ticket_id = uuid.uuid4().hex[:8].upper()
+        order_id = uuid.UUID(resp := uuid.uuid4().hex) if False else uuid.uuid4()
 
         payload = json.dumps({
             "ticket_id": ticket_id,
@@ -237,26 +233,21 @@ async def pay_handler(cq: CallbackQuery, callback_data: PayCb):
             "final_price_rub": price_rub,
         })
 
-        return_url = "https://t.me/berloga_programmistov"
-        failed_url = "https://t.me/berloga_programmistov"
-
         resp = await platega_pay.create_sbp_payment(
             amount_rub=price_rub,
             description=f"{product.title} | Ticket #{ticket_id}",
             payload=payload,
-            return_url=return_url,
-            failed_url=failed_url,
+            return_url="https://t.me/berloga_programmistov",
+            failed_url="https://t.me/berloga_programmistov",
             payment_method=2,
         )
 
         tx_id = resp.get("transactionId")
         pay_url = resp.get("redirect")
-
         if not tx_id or not pay_url:
-            await cq.answer("Не удалось создать платёж. Попробуйте ещё раз.", show_alert=True)
+            await cq.answer("Не удалось создать платёж", show_alert=True)
             return
 
-        # 1) сохраняем pending в файл (переживает рестарт/падение; нужно для webhook)
         platega_orders.put(
             tx_id,
             PendingPlategaOrder(
@@ -270,7 +261,6 @@ async def pay_handler(cq: CallbackQuery, callback_data: PayCb):
             )
         )
 
-        # 2) сохраняем в память (для удаления сообщения с кнопкой и быстрого polling)
         _PENDING_PLATEGA[tx_id] = {
             "ticket_id": ticket_id,
             "buyer_id": cq.from_user.id,
@@ -282,46 +272,37 @@ async def pay_handler(cq: CallbackQuery, callback_data: PayCb):
             "message_id": cq.message.message_id if cq.message else None,
         }
 
-        # polling можно оставить как “ускоритель”; webhook будет надёжным бэкапом
+        pg = _pg_payments()
+        if pg:
+            try:
+                await pg.create_payment(PaymentCreate(
+                    order_id=uuid.UUID(str(tx_id)),
+                    ticket_id=ticket_id,
+                    user_id=cq.from_user.id,
+                    product_id=product.id,
+                    promo_code=promo_code,
+                    final_price_rub=price_rub,
+                    payment_method="sbp",
+                ))
+            except Exception:
+                pass
+
         asyncio.create_task(_poll_platega_status(tx_id, cq.bot))
 
-        caption = (
-            f"💳 *Оплата через {method.title}*\n\n"
-            f"📦 Товар: *{product.title}*\n"
-        )
-        if promo_code:
-            caption += (
-                f"🏷 Промокод: *{promo_code}*\n"
-                f"💰 Сумма: *{price_rub} ₽* *(со скидкой)*\n\n"
-            )
-        else:
-            caption += (
-                f"💰 Сумма: *{price_rub} ₽*\n\n"
-            )
-
-        caption += (
-            "_Ссылка действительна ~15 минут_\n\n"
-            "Нажимая «Оплатить», вы соглашаетесь с [условиями сервиса](https://telegra.ph/Dokumenty-servisa-IT-Berloga-Store-01-20).\n"
-        )
-
         await cq.message.edit_caption(
-            caption=caption,
+            caption=f"💳 *Оплата через {method.title}*\n\n📦 *{product.title}*\n💰 *{price_rub} ₽*",
             reply_markup=pay_invoice_kb(pay_url, product.id),
             parse_mode="Markdown",
         )
         return
 
-    # === CRYPTO (как было) ===
+    # === CRYPTO ===
     asset = method.asset
-
-    try:
-        amount_crypto = await convert(float(price_rub), "RUB", asset)
-        amount_crypto = quantize_amount(amount_crypto, asset)
-    except Exception:
-        await cq.answer("Не удалось получить курс. Попробуйте ещё раз.", show_alert=True)
-        return
+    amount_crypto = quantize_amount(await convert(price_rub, "RUB", asset), asset)
+    order_id = uuid.uuid4()
 
     payload = json.dumps({
+        "order_id": str(order_id),
         "product_id": product.id,
         "buyer_id": cq.from_user.id,
         "buyer_username": cq.from_user.username,
@@ -337,31 +318,22 @@ async def pay_handler(cq: CallbackQuery, callback_data: PayCb):
         expires_in=1800,
     )
 
+    pg = _pg_payments()
+    if pg:
+        await pg.create_payment(PaymentCreate(
+            order_id=order_id,
+            ticket_id=str(invoice.invoice_id),
+            user_id=cq.from_user.id,
+            product_id=product.id,
+            promo_code=promo_code,
+            final_price_rub=price_rub,
+            payment_method="crypto",
+        ))
+
     invoice.poll(message=cq.message)
 
-    caption = (
-        f"💳 *Оплата через {method.title}*\n\n"
-        f"📦 Товар: *{product.title}*\n"
-    )
-
-    if promo_code:
-        caption += (
-            f"🏷 Промокод: *{promo_code}*\n"
-            f"💰 Сумма: *{amount_crypto} {asset}* *(≈ {price_rub} ₽ со скидкой)*\n\n"
-        )
-    else:
-        caption += (
-            f"💰 Сумма: *{amount_crypto} {asset}* *(≈ {product.price_rub} ₽)*\n\n"
-        )
-
-    caption += (
-        "_Курс обновляется каждые 30 сек_\n"
-        "_Ссылка действительна в течение 30 минут_\n\n"
-        "Нажимая «Оплатить», вы соглашаетесь с [условиями сервиса](https://telegra.ph/Dokumenty-servisa-IT-Berloga-Store-01-20).\n"
-    )
-
     await cq.message.edit_caption(
-        caption=caption,
+        caption=f"💳 *Оплата через {method.title}*\n\n📦 *{product.title}*\n💰 *{amount_crypto} {asset}*",
         reply_markup=pay_invoice_kb(invoice.bot_invoice_url, product.id),
         parse_mode="Markdown",
     )
@@ -370,25 +342,22 @@ async def pay_handler(cq: CallbackQuery, callback_data: PayCb):
 @crypto_pay.invoice_paid()
 async def on_invoice_paid(invoice, message):
     data = json.loads(invoice.payload)
+    order_id = data.get("order_id")
 
-    buyer_id = data["buyer_id"]
-    buyer_username = data.get("buyer_username")
-    product_id = data["product_id"]
-    promo_code = data.get("promo_code")
-    final_price_rub = data.get("final_price_rub")
-
-    try:
-        await message.delete()
-    except TelegramBadRequest:
-        pass
+    pg = _pg_payments()
+    if pg and order_id:
+        try:
+            await pg.mark_paid(uuid.UUID(order_id))
+        except Exception:
+            pass
 
     await _finalize_purchase(
         bot=message.bot,
-        buyer_id=buyer_id,
-        buyer_username=buyer_username,
-        product_id=product_id,
+        buyer_id=data["buyer_id"],
+        buyer_username=data.get("buyer_username"),
+        product_id=data["product_id"],
         amount_asset=str(invoice.amount),
         asset=str(invoice.asset),
-        final_price_rub=final_price_rub,
-        promo_code=promo_code,
+        final_price_rub=data.get("final_price_rub"),
+        promo_code=data.get("promo_code"),
     )

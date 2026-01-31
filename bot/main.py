@@ -39,6 +39,9 @@ async def main():
     await pool.execute("select 1;")
     print("PG: OK")
 
+    # === ВАЖНО: прокидываем pool в payments ===
+    payments.set_pg_pool(pool)
+
     # --- middlewares ---
     dp.message.middleware(UserTrackingMiddleware())
     dp.callback_query.middleware(UserTrackingMiddleware())
@@ -54,7 +57,13 @@ async def main():
         await asyncio.gather(
             dp.start_polling(bot),
             crypto_pay.start_polling(),
-            start_platega_webhook_server(bot, host="0.0.0.0", port=8080),
+            # === ВАЖНО: передаём pool в webhook ===
+            start_platega_webhook_server(
+                bot,
+                pg_pool=pool,
+                host="0.0.0.0",
+                port=8080,
+            ),
         )
     finally:
         await pool.close()
