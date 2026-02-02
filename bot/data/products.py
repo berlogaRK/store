@@ -9,8 +9,8 @@ class Category:
 
 CATEGORIES: List[Category] = [
     Category(
-        id="gpt_plus",
-        title="ChatGPT Business",
+        id="gpt",
+        title="ChatGPT",
     ),
     Category(
         id="google_gemini",
@@ -35,25 +35,25 @@ class Product:
 
 PRODUCTS: List[Product] = [
     Product(
-        id="gpt_plus_1m",
+        id="gpt_business_1m",
         title="Подписка ChatGPT Business на месяц",
         description=(
         "После покупки запросим необходимые данные и подключим подписку.\n\n"
         "[Подробное описание товара](https://t.me/itberloga_store/4)"
         ),
         price_rub=1499,
-        category_id="gpt_plus",
+        category_id="gpt",
         image_path="assets/chatgpt.jpg",
     ),
     Product(
-        id="gpt_plus_25d",
-        title="Подписка ChatGPT Business на 25 Дней",
+        id="gpt_plus_1m",
+        title="Подписка ChatGPT Plus на месяц",
         description=(
         "После покупки запросим необходимые данные и подключим подписку.\n\n"
-        "[Подробное описание товара](https://t.me/itberloga_store/4)"
+        "[Подробное описание товара](https://t.me/itberloga_store/9)"
         ),
         price_rub=1299,
-        category_id="gpt_plus",
+        category_id="gpt",
         image_path="assets/chatgpt.jpg",
     ),
         Product(
