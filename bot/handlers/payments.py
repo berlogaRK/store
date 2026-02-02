@@ -7,7 +7,7 @@ from aiogram import Router
 from aiogram.exceptions import TelegramBadRequest
 from aiogram.types import CallbackQuery
 
-from bot.config import TICKETS_CHAT_ID
+from bot.config import TICKETS_CHAT_ID, PAYMENTS_ENABLED
 from bot.data.products import get_product
 from bot.keyboards.callbacks import PayCb
 from bot.keyboards.payments import pay_invoice_kb, purchase_done_kb
@@ -16,21 +16,22 @@ from bot.payments.rates_cache import convert, quantize_amount
 from bot.promos import promo_service
 from bot.promos.state import USER_PROMO
 from bot.services.crypto_pay import crypto_pay
-from bot.services.platega_pay import platega_pay
 from bot.users import user_service
 from bot.utils.notify import notify_managers
 from bot.utils.tickets import send_ticket_to_group
 
 from bot.payments.platega_orders import PlategaOrders, PendingPlategaOrder
 
-# === PG payments ===
+# === PG payments (PostgreSQL primary; JSON остается как временный fallback) ===
 import asyncpg
 from bot.payments.pg_storage import PgPaymentsStorage, PaymentCreate
+
 
 _PG_POOL: asyncpg.Pool | None = None
 
 
 def set_pg_pool(pool: asyncpg.Pool) -> None:
+    """Прокидываем asyncpg pool из main.py (в PROD)."""
     global _PG_POOL
     _PG_POOL = pool
 
@@ -124,13 +125,20 @@ async def _finalize_purchase(
     USER_PROMO.pop(buyer_id, None)
 
     amount_rub = final_price_rub or (product.price_rub if product else 0)
-    await user_service.add_purchase(buyer_id, amount_rub)
+    # В PROD у нас есть pool → обновим users в PG; в test/фоллбэке уйдёт в JSON.
+    await user_service.add_purchase(buyer_id, amount_rub, pool=_PG_POOL)
 
 
 async def _poll_platega_status(tx_id: str, bot):
-    meta = _PENDING_PLATEGA.get(tx_id) or platega_orders.get(tx_id)
+    """
+    Проверяем /transaction/{id} пока не станет CONFIRMED / CANCELED / CHARGEBACK.
+    Успешный — CONFIRMED, неуспешный — CANCELED, возврат — CHARGEBACK.
+    """
+    meta = _PENDING_PLATEGA.get(tx_id)
     if not meta:
-        return
+        meta = platega_orders.get(tx_id)
+        if not meta:
+            return
 
     ticket_id = meta["ticket_id"]
     buyer_id = meta["buyer_id"]
@@ -141,8 +149,10 @@ async def _poll_platega_status(tx_id: str, bot):
     message_chat_id = meta.get("message_chat_id")
     message_id = meta.get("message_id")
 
+    # 30 минут, проверка раз в 5 секунд
     for _ in range(30 * 60 // 5):
         try:
+            from bot.services.platega_pay import platega_pay  # lazy import
             st = await platega_pay.get_transaction(tx_id)
         except Exception:
             await asyncio.sleep(5)
@@ -203,26 +213,55 @@ async def _poll_platega_status(tx_id: str, bot):
         await asyncio.sleep(5)
 
     _PENDING_PLATEGA.pop(tx_id, None)
+    try:
+        await bot.send_message(
+            buyer_id,
+            "⌛️ Ссылка на оплату устарела.\n\n"
+            "Если вы *уже оплатили* — ничего делать не нужно, мы проверим оплату автоматически.\n"
+            "Если не оплачивали — откройте товар и создайте новый платёж.\n\n"
+            "По всем вопросам смело обращайтесь в поддержку!"
+        )
+    except Exception:
+        pass
 
 
 @router.callback_query(PayCb.filter())
 async def pay_handler(cq: CallbackQuery, callback_data: PayCb):
+    # === Вариант A: в test-режиме платежи отключены ===
+    if not PAYMENTS_ENABLED:
+        await cq.answer("💤 Оплаты отключены в тестовом режиме.", show_alert=True)
+        return
+
     method = PAYMENT_METHODS.get(callback_data.method)
-    if not method or not method.enabled:
-        await cq.answer("Способ оплаты недоступен", show_alert=True)
+
+    if not method:
+        await cq.answer("Неизвестный способ оплаты", show_alert=True)
+        return
+
+    if not method.enabled:
+        await cq.answer(method.disabled_text, show_alert=True)
         return
 
     product = get_product(callback_data.product_id)
     if not product:
-        await cq.answer("Товар не найден", show_alert=True)
+        await cq.message.answer("Товар не найден", show_alert=True)
+        return
+
+    method = PAYMENT_METHODS.get(callback_data.method)
+    if not method:
+        await cq.message.answer("Неизвестный способ оплаты", show_alert=True)
+        return
+
+    if not method.enabled:
+        await cq.answer(method.disabled_text or "Способ оплаты недоступен", show_alert=True)
         return
 
     price_rub, promo_code = _compute_price_with_promo(cq.from_user.id, product)
 
-    # === RUB / PLATEGA ===
+    # === RUB (Platega) ===
     if method.code == "rub":
+
         ticket_id = uuid.uuid4().hex[:8].upper()
-        order_id = uuid.UUID(resp := uuid.uuid4().hex) if False else uuid.uuid4()
 
         payload = json.dumps({
             "ticket_id": ticket_id,
@@ -233,19 +272,24 @@ async def pay_handler(cq: CallbackQuery, callback_data: PayCb):
             "final_price_rub": price_rub,
         })
 
+        return_url = "https://t.me/berloga_programmistov"
+        failed_url = "https://t.me/berloga_programmistov"
+
+        from bot.services.platega_pay import platega_pay  # lazy import
         resp = await platega_pay.create_sbp_payment(
             amount_rub=price_rub,
             description=f"{product.title} | Ticket #{ticket_id}",
             payload=payload,
-            return_url="https://t.me/berloga_programmistov",
-            failed_url="https://t.me/berloga_programmistov",
+            return_url=return_url,
+            failed_url=failed_url,
             payment_method=2,
         )
 
         tx_id = resp.get("transactionId")
         pay_url = resp.get("redirect")
+
         if not tx_id or not pay_url:
-            await cq.answer("Не удалось создать платёж", show_alert=True)
+            await cq.answer("Не удалось создать платёж. Попробуйте ещё раз.", show_alert=True)
             return
 
         platega_orders.put(
@@ -272,33 +316,63 @@ async def pay_handler(cq: CallbackQuery, callback_data: PayCb):
             "message_id": cq.message.message_id if cq.message else None,
         }
 
+        # 3) создаём запись в PostgreSQL (pending)
         pg = _pg_payments()
         if pg:
             try:
-                await pg.create_payment(PaymentCreate(
-                    order_id=uuid.UUID(str(tx_id)),
-                    ticket_id=ticket_id,
-                    user_id=cq.from_user.id,
-                    product_id=product.id,
-                    promo_code=promo_code,
-                    final_price_rub=price_rub,
-                    payment_method="sbp",
-                ))
+                await pg.create_payment(
+                    PaymentCreate(
+                        order_id=uuid.UUID(str(tx_id)),
+                        ticket_id=ticket_id,
+                        user_id=cq.from_user.id,
+                        product_id=product.id,
+                        promo_code=promo_code,
+                        final_price_rub=price_rub,
+                        payment_method="sbp",
+                    )
+                )
             except Exception:
                 pass
 
         asyncio.create_task(_poll_platega_status(tx_id, cq.bot))
 
+        caption = (
+            f"💳 *Оплата через {method.title}*\n\n"
+            f"📦 Товар: *{product.title}*\n"
+        )
+        if promo_code:
+            caption += (
+                f"🏷 Промокод: *{promo_code}*\n"
+                f"💰 Сумма: *{price_rub} ₽* *(со скидкой)*\n\n"
+            )
+        else:
+            caption += (
+                f"💰 Сумма: *{price_rub} ₽*\n\n"
+            )
+
+        caption += (
+            "_Ссылка действительна ~15 минут_\n\n"
+            "Нажимая «Оплатить», вы соглашаетесь с [условиями сервиса](https://telegra.ph/Dokumenty-servisa-IT-Berloga-Store-01-20).\n"
+        )
+
         await cq.message.edit_caption(
-            caption=f"💳 *Оплата через {method.title}*\n\n📦 *{product.title}*\n💰 *{price_rub} ₽*",
+            caption=caption,
             reply_markup=pay_invoice_kb(pay_url, product.id),
             parse_mode="Markdown",
         )
         return
 
-    # === CRYPTO ===
+    # === CRYPTO (CryptoBot) ===
     asset = method.asset
-    amount_crypto = quantize_amount(await convert(price_rub, "RUB", asset), asset)
+
+    try:
+        amount_crypto = await convert(float(price_rub), "RUB", asset)
+        amount_crypto = quantize_amount(amount_crypto, asset)
+    except Exception:
+        await cq.answer("Не удалось получить курс. Попробуйте ещё раз.", show_alert=True)
+        return
+
+    # Наш order_id для таблицы payments (UUID)
     order_id = uuid.uuid4()
 
     payload = json.dumps({
@@ -318,22 +392,49 @@ async def pay_handler(cq: CallbackQuery, callback_data: PayCb):
         expires_in=1800,
     )
 
+    # создаём запись в PostgreSQL (pending)
     pg = _pg_payments()
     if pg:
-        await pg.create_payment(PaymentCreate(
-            order_id=order_id,
-            ticket_id=str(invoice.invoice_id),
-            user_id=cq.from_user.id,
-            product_id=product.id,
-            promo_code=promo_code,
-            final_price_rub=price_rub,
-            payment_method="crypto",
-        ))
+        try:
+            await pg.create_payment(
+                PaymentCreate(
+                    order_id=order_id,
+                    ticket_id=str(getattr(invoice, "invoice_id", "")),
+                    user_id=cq.from_user.id,
+                    product_id=product.id,
+                    promo_code=promo_code,
+                    final_price_rub=price_rub,
+                    payment_method="crypto",
+                )
+            )
+        except Exception:
+            pass
 
     invoice.poll(message=cq.message)
 
+    caption = (
+        f"💳 *Оплата через {method.title}*\n\n"
+        f"📦 Товар: *{product.title}*\n"
+    )
+
+    if promo_code:
+        caption += (
+            f"🏷 Промокод: *{promo_code}*\n"
+            f"💰 Сумма: *{amount_crypto} {asset}* *(≈ {price_rub} ₽ со скидкой)*\n\n"
+        )
+    else:
+        caption += (
+            f"💰 Сумма: *{amount_crypto} {asset}* *(≈ {product.price_rub} ₽)*\n\n"
+        )
+
+    caption += (
+        "_Курс обновляется каждые 30 сек_\n"
+        "_Ссылка действительна в течение 30 минут_\n\n"
+        "Нажимая «Оплатить», вы соглашаетесь с [условиями сервиса](https://telegra.ph/Dokumenty-servisa-IT-Berloga-Store-01-20).\n"
+    )
+
     await cq.message.edit_caption(
-        caption=f"💳 *Оплата через {method.title}*\n\n📦 *{product.title}*\n💰 *{amount_crypto} {asset}*",
+        caption=caption,
         reply_markup=pay_invoice_kb(invoice.bot_invoice_url, product.id),
         parse_mode="Markdown",
     )
@@ -342,22 +443,33 @@ async def pay_handler(cq: CallbackQuery, callback_data: PayCb):
 @crypto_pay.invoice_paid()
 async def on_invoice_paid(invoice, message):
     data = json.loads(invoice.payload)
+
+    buyer_id = data["buyer_id"]
+    buyer_username = data.get("buyer_username")
+    product_id = data["product_id"]
+    promo_code = data.get("promo_code")
+    final_price_rub = data.get("final_price_rub")
     order_id = data.get("order_id")
 
     pg = _pg_payments()
     if pg and order_id:
         try:
-            await pg.mark_paid(uuid.UUID(order_id))
+            await pg.mark_paid(uuid.UUID(str(order_id)))
         except Exception:
             pass
 
+    try:
+        await message.delete()
+    except TelegramBadRequest:
+        pass
+
     await _finalize_purchase(
         bot=message.bot,
-        buyer_id=data["buyer_id"],
-        buyer_username=data.get("buyer_username"),
-        product_id=data["product_id"],
+        buyer_id=buyer_id,
+        buyer_username=buyer_username,
+        product_id=product_id,
         amount_asset=str(invoice.amount),
         asset=str(invoice.asset),
-        final_price_rub=data.get("final_price_rub"),
-        promo_code=data.get("promo_code"),
+        final_price_rub=final_price_rub,
+        promo_code=promo_code,
     )
