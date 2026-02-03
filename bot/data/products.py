@@ -50,7 +50,7 @@ PRODUCTS: List[Product] = [
         title="Подписка ChatGPT Plus на месяц",
         description=(
         "После покупки запросим необходимые данные и подключим подписку.\n\n"
-        "[Подробное описание товара](https://t.me/itberloga_store/9)"
+        "[Подробное описание товара](https://t.me/itberloga_store/18)"
         ),
         price_rub=1299,
         category_id="gpt",
