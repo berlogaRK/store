@@ -73,7 +73,18 @@ async def main():
                 )
             )
 
-        await dp.start_polling(bot)
+                # --- устойчивый polling (переживает дисконнекты Telegram) ---
+        while True:
+            try:
+                await dp.start_polling(bot)
+            except (asyncio.CancelledError, KeyboardInterrupt):
+                # корректное завершение приложения
+                raise
+            except Exception as e:
+                # любые временные сетевые ошибки (ServerDisconnectedError и т.п.)
+                print(f"[polling] error: {type(e).__name__}: {e}")
+                await asyncio.sleep(2)
+
 
     finally:
         if pool is not None:

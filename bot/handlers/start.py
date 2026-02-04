@@ -14,11 +14,13 @@ router = Router()
 
 async def show_start(message: Message):
     await show_photo(
-        message=message,
-        photo_path=START_IMAGE,
-        caption=home_text(),
-        reply_markup=home_kb(),
+    message=message,
+    photo_path=START_IMAGE,
+    caption=home_text(),
+    reply_markup=home_kb(),
+    allow_answer=True,
     )
+
 
 @router.message(CommandStart())
 async def start_cmd(message: Message):
