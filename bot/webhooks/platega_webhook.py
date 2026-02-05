@@ -1,39 +1,47 @@
 from __future__ import annotations
 
 import asyncio
-import json
 import uuid
 from aiohttp import web
 
-from bot.payments.platega_orders import PlategaOrders
-from bot.handlers.payments import _finalize_purchase  # payments НЕ импортирует webhook → кругового импорта не будет
 
-orders = PlategaOrders()
-
-
-async def _mark_paid_in_pg(pg_pool, tx_id: str) -> None:
-    """Пытаемся отметить платеж как paid в PostgreSQL (если pg_pool передан)."""
+async def _try_mark_paid(pg_pool, tx_id: str) -> bool:
+    """
+    Idempotency guard:
+    - True  -> мы ПЕРВЫЕ перевели статус в 'paid' (можно финализировать)
+    - False -> уже было paid (или не нашли платёж) => финализировать НЕЛЬЗЯ
+    """
     if not pg_pool:
-        return
+        return False
+
     try:
         order_id = uuid.UUID(str(tx_id))
     except Exception:
-        return
+        return False
 
+    # Атомарно: выставляем paid только если ещё не paid
     try:
-        await pg_pool.execute(
-            "update payments set status='paid' where order_id=$1",
+        row = await pg_pool.fetchrow(
+            """
+            update payments
+               set status = 'paid'
+             where order_id = $1
+               and status <> 'paid'
+         returning status
+            """,
             order_id,
         )
     except Exception:
-        # не валим webhook из‑за БД — мягкая деградация
-        return
+        return False
+
+    # row есть только если обновление произошло (то есть НЕ было paid)
+    return row is not None
 
 
 async def _fetch_meta_from_pg(pg_pool, tx_id: str) -> dict | None:
-    """Если JSON-меты нет (перезапуск/очистка файлов), пробуем достать мету из таблицы payments."""
     if not pg_pool:
         return None
+
     try:
         order_id = uuid.UUID(str(tx_id))
     except Exception:
@@ -43,8 +51,8 @@ async def _fetch_meta_from_pg(pg_pool, tx_id: str) -> dict | None:
         row = await pg_pool.fetchrow(
             """
             select ticket_id, user_id, product_id, promo_code, final_price_rub
-            from payments
-            where order_id=$1
+              from payments
+             where order_id = $1
             """,
             order_id,
         )
@@ -64,45 +72,48 @@ async def _fetch_meta_from_pg(pg_pool, tx_id: str) -> dict | None:
     }
 
 
-async def platega_webhook(request: web.Request) -> web.Response:
-    # 1) читаем json
-    try:
-        data = await request.json()
-    except Exception:
-        return web.json_response({"ok": False, "error": "bad json"}, status=400)
+async def _process_platega_tx(app: web.Application, tx_id: str) -> None:
+    """
+    Фоновая обработка:
+    - ретраи на запрос статуса
+    - финализация только если CONFIRMED
+    - анти-дубликат через атомарный UPDATE ... WHERE status <> 'paid'
+    """
+    pg_pool = app.get("pg_pool")
+    bot = app["bot"]
 
-    tx = data.get("transaction") or {}
-    tx_id = tx.get("id") or tx.get("transactionId")
-    if not tx_id:
-        return web.json_response({"ok": False, "error": "no tx id"}, status=400)
+    # 1) получаем статус с ретраями
+    st = None
+    for _ in range(10):  # ~30 секунд
+        try:
+            from bot.services.platega_pay import platega_pay
+            st = await platega_pay.get_transaction(tx_id)
+            break
+        except Exception:
+            await asyncio.sleep(3)
 
-    # 2) перепроверяем статус через API (не доверяем webhook'у “на слово”)
-    try:
-        from bot.services.platega_pay import platega_pay  # lazy import
-        st = await platega_pay.get_transaction(tx_id)
-    except Exception:
-        return web.json_response({"ok": False, "error": "status fetch failed"}, status=503)
+    if not st:
+        # не смогли получить статус — просто выходим (webhook уже ACK'нули 200)
+        return
 
     status = (st.get("status") or "").upper()
     if status != "CONFIRMED":
-        return web.json_response({})  # ACK
+        return
 
-    pg_pool = request.app.get("pg_pool")
+    # 2) Анти-дубликат: только первый CONFIRMED переводит в paid и финализирует
+    can_finalize = await _try_mark_paid(pg_pool, tx_id)
+    if not can_finalize:
+        return
 
-    # 3) достаём мету (сначала JSON как быстрый путь, потом PG как fallback)
-    meta = orders.pop(tx_id)
+    # 3) Достаём мету из PG
+    meta = await _fetch_meta_from_pg(pg_pool, tx_id)
     if not meta:
-        meta = await _fetch_meta_from_pg(pg_pool, tx_id)
+        return
 
-    if not meta:
-        return web.json_response({})  # уже обработано / неизвестно
-
-    # 4) обновляем статус в PG (если можем)
-    await _mark_paid_in_pg(pg_pool, tx_id)
-
-    # 5) финализируем покупку
+    # 4) Финализируем покупку (уведомления/тикет/промокод)
+    from bot.handlers.payments import _finalize_purchase  # lazy import
     await _finalize_purchase(
-        bot=request.app["bot"],
+        bot=bot,
         ticket_id=meta.get("ticket_id"),
         buyer_id=meta["buyer_id"],
         buyer_username=meta.get("buyer_username"),
@@ -113,7 +124,22 @@ async def platega_webhook(request: web.Request) -> web.Response:
         promo_code=meta.get("promo_code"),
     )
 
-    return web.json_response({})
+
+async def platega_webhook(request: web.Request) -> web.Response:
+    # читаем json
+    try:
+        data = await request.json()
+    except Exception:
+        return web.json_response({"ok": False, "error": "bad json"}, status=400)
+
+    tx = data.get("transaction") or {}
+    tx_id = tx.get("id") or tx.get("transactionId")
+    if not tx_id:
+        return web.json_response({"ok": False, "error": "no tx id"}, status=400)
+
+    # ✅ Быстрый ACK (200), обработка — в фоне
+    asyncio.create_task(_process_platega_tx(request.app, str(tx_id)))
+    return web.json_response({})  # 200
 
 
 async def start_platega_webhook_server(
@@ -126,13 +152,14 @@ async def start_platega_webhook_server(
     app["bot"] = bot
     app["pg_pool"] = pg_pool
 
+    # и со слэшем, и без
     app.router.add_post("/webhooks/platega", platega_webhook)
+    app.router.add_post("/webhooks/platega/", platega_webhook)
 
     runner = web.AppRunner(app)
     await runner.setup()
     site = web.TCPSite(runner, host=host, port=port)
     await site.start()
 
-    # держим корутину живой
     while True:
         await asyncio.sleep(3600)
