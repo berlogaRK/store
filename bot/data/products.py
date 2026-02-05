@@ -63,7 +63,7 @@ PRODUCTS: List[Product] = [
         "После покупки запросим необходимые данные и подключим подписку.\n\n"
         "[Подробное описание товара](https://t.me/itberloga_store/5)"
         ),
-        price_rub=1,
+        price_rub=1099,
         category_id="google_gemini",
         image_path="assets/gemini.jpg",
     )
