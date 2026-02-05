@@ -126,19 +126,38 @@ async def _process_platega_tx(app: web.Application, tx_id: str) -> None:
 
 
 async def platega_webhook(request: web.Request) -> web.Response:
-    # читаем json
+    # ✅ всегда ACK 200, чтобы Platega не считала доставку "failed"
+    # даже если тело неожиданное
     try:
-        data = await request.json()
+        raw = await request.read()
     except Exception:
-        return web.json_response({"ok": False, "error": "bad json"}, status=400)
+        raw = b""
 
-    tx = data.get("transaction") or {}
-    tx_id = tx.get("id") or tx.get("transactionId")
-    if not tx_id:
-        return web.json_response({"ok": False, "error": "no tx id"}, status=400)
+    data = {}
+    try:
+        # пробуем JSON
+        if raw:
+            import json
+            data = json.loads(raw.decode("utf-8", errors="ignore"))
+    except Exception:
+        data = {}
 
-    # ✅ Быстрый ACK (200), обработка — в фоне
-    asyncio.create_task(_process_platega_tx(request.app, str(tx_id)))
+    # пытаемся вытащить tx_id максимально широко
+    tx_id = None
+
+    # 1) стандартный формат: {"transaction": {"id": "..."}}
+    tx = data.get("transaction") if isinstance(data, dict) else None
+    if isinstance(tx, dict):
+        tx_id = tx.get("id") or tx.get("transactionId")
+
+    # 2) иногда transactionId приходит на верхнем уровне
+    if not tx_id and isinstance(data, dict):
+        tx_id = data.get("transactionId") or data.get("id")
+
+    # 3) если вообще ничего не нашли — всё равно 200, просто не обрабатываем
+    if tx_id:
+        asyncio.create_task(_process_platega_tx(request.app, str(tx_id)))
+
     return web.json_response({})  # 200
 
 
