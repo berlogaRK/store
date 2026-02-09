@@ -16,6 +16,10 @@ CATEGORIES: List[Category] = [
         id="google_gemini",
         title="Google Gemini Pro",
     ),
+    Category(
+        id="perplexity",
+        title="Perplexity Pro",
+    ),
 ]
 
 def get_category(cid: str) -> Category | None:
@@ -66,6 +70,17 @@ PRODUCTS: List[Product] = [
         price_rub=1099,
         category_id="google_gemini",
         image_path="assets/gemini.jpg",
+    ),
+        Product(
+        id="perplexity",
+        title="Подписка Perplexity PRO на месяц",
+        description=(
+        "После покупки запросим необходимые данные и подключим подписку.\n\n"
+        "[Подробное описание товара](https://t.me/itberloga_store/20)"
+        ),
+        price_rub=999,
+        category_id="perplexity",
+        image_path="assets/perplexity.jpg",
     )
 ]
 
