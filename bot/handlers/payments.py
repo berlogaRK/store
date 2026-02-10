@@ -75,6 +75,14 @@ async def _finalize_purchase(
     if not ticket_id:
         ticket_id = uuid.uuid4().hex[:8].upper()
 
+    # ✅ (пункт 2) если username не пришёл (например, из вебхука) — пробуем достать у Telegram
+    if not buyer_username and buyer_id:
+        try:
+            chat = await bot.get_chat(buyer_id)
+            buyer_username = getattr(chat, "username", None)
+        except Exception:
+            pass
+
     await bot.send_message(
         buyer_id,
         "✅ *Оплата прошла успешно!*\n\n"
@@ -102,7 +110,7 @@ async def _finalize_purchase(
 
     manager_text += (
         f"\n👤 Покупатель: @{buyer_username or '—'}\n"
-        f"🆔 User ID: [{buyer_id}](tg://user?id={buyer_id})"
+        f"🆔 User ID: {buyer_id}"
     )
 
     await notify_managers(bot, manager_text)
@@ -167,12 +175,20 @@ async def _poll_platega_status(tx_id: str, bot):
                 except TelegramBadRequest:
                     pass
 
+            # ✅ (пункт 1) идемпотентность: финализируем только если мы первые отметили paid
             pg = _pg_payments()
             if pg:
                 try:
-                    await pg.mark_paid(uuid.UUID(str(tx_id)))
+                    first = await pg.mark_paid(uuid.UUID(str(tx_id)))
                 except Exception:
-                    pass
+                    # если не смогли залочить — лучше не дублировать
+                    return
+
+                if not first:
+                    # уже финализировали (например, через вебхук)
+                    _PENDING_PLATEGA.pop(tx_id, None)
+                    platega_orders.pop(tx_id)
+                    return
 
             await _finalize_purchase(
                 bot=bot,
@@ -261,7 +277,6 @@ async def pay_handler(cq: CallbackQuery, callback_data: PayCb):
 
     # === RUB (Platega) ===
     if method.code == "rub":
-
         ticket_id = uuid.uuid4().hex[:8].upper()
 
         payload = json.dumps({
@@ -317,7 +332,7 @@ async def pay_handler(cq: CallbackQuery, callback_data: PayCb):
             "message_id": cq.message.message_id if cq.message else None,
         }
 
-        # 3) создаём запись в PostgreSQL (pending)
+        # создаём запись в PostgreSQL (pending)
         pg = _pg_payments()
         if pg:
             try:
@@ -347,9 +362,7 @@ async def pay_handler(cq: CallbackQuery, callback_data: PayCb):
                 f"💰 Сумма: *{price_rub} ₽* *(со скидкой)*\n\n"
             )
         else:
-            caption += (
-                f"💰 Сумма: *{price_rub} ₽*\n\n"
-            )
+            caption += f"💰 Сумма: *{price_rub} ₽*\n\n"
 
         caption += (
             "_Ссылка действительна ~15 минут_\n\n"
@@ -452,12 +465,15 @@ async def on_invoice_paid(invoice, message):
     final_price_rub = data.get("final_price_rub")
     order_id = data.get("order_id")
 
+    # ✅ (пункт 1) для крипты тоже: не дублить финализацию
     pg = _pg_payments()
     if pg and order_id:
         try:
-            await pg.mark_paid(uuid.UUID(str(order_id)))
+            first = await pg.mark_paid(uuid.UUID(str(order_id)))
+            if not first:
+                return
         except Exception:
-            pass
+            return
 
     try:
         await message.delete()

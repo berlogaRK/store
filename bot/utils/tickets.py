@@ -1,6 +1,26 @@
 from datetime import datetime
 import html
+
 from aiogram import Bot
+from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+
+
+def ticket_actions_kb(buyer_id: int, buyer_username: str | None) -> InlineKeyboardMarkup:
+    buttons = []
+
+    if buyer_username:
+        safe_un = buyer_username.strip().lstrip("@")
+        if safe_un:
+            buttons.append(
+                [InlineKeyboardButton(text="Открыть профиль (@username)", url=f"https://t.me/{safe_un}")]
+            )
+
+    # В виде кнопки tg:// обычно работает лучше, чем ссылка в тексте
+    buttons.append(
+        [InlineKeyboardButton(text="Открыть профиль (ID)", url=f"tg://user?id={buyer_id}")]
+    )
+
+    return InlineKeyboardMarkup(inline_keyboard=buttons)
 
 
 def build_ticket_message(
@@ -19,9 +39,14 @@ def build_ticket_message(
     safe_title = html.escape(product_title or "—")
     safe_amount = html.escape(str(amount))
     safe_asset = html.escape(str(asset))
-    safe_username = html.escape(buyer_username or "—")
 
     rub_line = f"\n💵 В рублях: <b>{html.escape(str(price_rub))} ₽</b>" if price_rub is not None else ""
+
+    if buyer_username:
+        safe_un = html.escape(buyer_username.strip().lstrip("@"))
+        buyer_line = f'👤 Покупатель: <a href="https://t.me/{safe_un}">@{safe_un}</a>\n'
+    else:
+        buyer_line = "👤 Покупатель: @—\n"
 
     return (
         "🆕 <b>НОВАЯ ОПЛАТА</b>\n"
@@ -29,8 +54,8 @@ def build_ticket_message(
         f"🧾 Тикет: <b>#{safe_ticket}</b>\n"
         f"📦 Товар: <b>{safe_title}</b>\n"
         f"💰 Сумма: <b>{safe_amount} {safe_asset}</b>{rub_line}\n\n"
-        f"👤 Покупатель: @{safe_username}\n"
-        f"🆔 User ID: <a href=\"tg://user?id={buyer_id}\">{buyer_id}</a>"
+        f"{buyer_line}"
+        f"🆔 User ID: <code>{buyer_id}</code>"
     )
 
 
@@ -51,7 +76,7 @@ async def send_ticket_to_group(
     buyer_username: str | None,
     price_rub: int | None = None,
 ):
-    # 1️⃣ Карточка тикета
+    # 1️⃣ Карточка тикета + кнопки
     await bot.send_message(
         chat_id=chat_id,
         text=build_ticket_message(
@@ -65,6 +90,7 @@ async def send_ticket_to_group(
         ),
         parse_mode="HTML",
         disable_web_page_preview=True,
+        reply_markup=ticket_actions_kb(buyer_id, buyer_username),
     )
 
     # 2️⃣ Статус тикета
