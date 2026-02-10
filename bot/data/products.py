@@ -78,7 +78,7 @@ PRODUCTS: List[Product] = [
         "После покупки запросим необходимые данные и подключим подписку.\n\n"
         "[Подробное описание товара](https://t.me/itberloga_store/20)"
         ),
-        price_rub=1,
+        price_rub=999,
         category_id="perplexity",
         image_path="assets/perplexity.jpg",
     )
