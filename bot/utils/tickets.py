@@ -5,22 +5,12 @@ from aiogram import Bot
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 
 
-def ticket_actions_kb(buyer_id: int, buyer_username: str | None) -> InlineKeyboardMarkup:
-    buttons = []
-
-    if buyer_username:
-        safe_un = buyer_username.strip().lstrip("@")
-        if safe_un:
-            buttons.append(
-                [InlineKeyboardButton(text="Открыть профиль (@username)", url=f"https://t.me/{safe_un}")]
-            )
-
-    # В виде кнопки tg:// обычно работает лучше, чем ссылка в тексте
-    buttons.append(
-        [InlineKeyboardButton(text="Открыть профиль (ID)", url=f"tg://user?id={buyer_id}")]
+def ticket_actions_kb(buyer_id: int) -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="Открыть профиль (ID)", url=f"tg://user?id={buyer_id}")]
+        ]
     )
-
-    return InlineKeyboardMarkup(inline_keyboard=buttons)
 
 
 def build_ticket_message(
@@ -44,7 +34,7 @@ def build_ticket_message(
 
     if buyer_username:
         safe_un = html.escape(buyer_username.strip().lstrip("@"))
-        buyer_line = f'👤 Покупатель: <a href="https://t.me/{safe_un}">@{safe_un}</a>\n'
+        buyer_line = f"👤 Покупатель: @{safe_un}\n"
     else:
         buyer_line = "👤 Покупатель: @—\n"
 
@@ -76,7 +66,7 @@ async def send_ticket_to_group(
     buyer_username: str | None,
     price_rub: int | None = None,
 ):
-    # 1️⃣ Карточка тикета + кнопки
+    # 1️⃣ Карточка тикета + кнопка по ID
     await bot.send_message(
         chat_id=chat_id,
         text=build_ticket_message(
@@ -90,7 +80,7 @@ async def send_ticket_to_group(
         ),
         parse_mode="HTML",
         disable_web_page_preview=True,
-        reply_markup=ticket_actions_kb(buyer_id, buyer_username),
+        reply_markup=ticket_actions_kb(buyer_id),
     )
 
     # 2️⃣ Статус тикета
