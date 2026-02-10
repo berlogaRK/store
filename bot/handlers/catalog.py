@@ -2,10 +2,10 @@ from aiogram import Router, F
 from aiogram.types import CallbackQuery, Message
 
 from bot.keyboards.callbacks import NavCb, PromoCb, PayGroupCb, BackCb, BonusCb
-from bot.keyboards.inline import home_kb, catalog_kb, category_products_kb, chatgpt_plans_kb, profile_kb
+from bot.keyboards.inline import home_kb, catalog_kb, category_products_kb, chatgpt_plans_kb, profile_kb, profile_kb
 from bot.keyboards.payments import payment_groups_kb, crypto_methods_kb
-from bot.utils.text import home_text, catalog_text, product_text
-from bot.utils.media import START_IMAGE, CATALOG_IMAGE
+from bot.utils.text import home_text, catalog_text, product_text, profile_text
+from bot.utils.media import START_IMAGE, CATALOG_IMAGE, PROFILE_IMAGE
 from bot.utils.render import show_photo, show_text
 from bot.data.products import get_category, get_products_by_category, get_product
 from bot.users import user_service

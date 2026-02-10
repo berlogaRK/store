@@ -14,9 +14,10 @@ def home_kb():
     kb = InlineKeyboardBuilder()
     kb.button(text="Каталог", callback_data=NavCb(page="catalog").pack())
     kb.button(text="Отзывы", url=REVIEWS_CHANNEL_URL)
-    kb.button(text="Тех. поддержка", url=SUPPORT_USER_URL)
+    kb.button(text="Профиль", callback_data=NavCb(page="profile").pack())
     kb.button(text="Информация", callback_data=NavCb(page="info").pack())
-    kb.adjust(2, 1, 1)
+    kb.button(text="Тех. поддержка", url=SUPPORT_USER_URL)
+    kb.adjust(2, 2, 1)
     return kb.as_markup()
 
 
