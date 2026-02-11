@@ -42,6 +42,7 @@ class JsonUserStorage:
                     "last_seen": now,
                     "total_purchases": 0,
                     "total_spent_rub": 0,
+                    "ref": None,
                 }
             else:
                 data[uid]["username"] = user.username
@@ -66,6 +67,7 @@ class JsonUserStorage:
                     "last_seen": None,
                     "total_purchases": 0,
                     "total_spent_rub": 0,
+                    "ref": None,
                 }
 
             data[uid]["total_purchases"] = int(
@@ -77,3 +79,48 @@ class JsonUserStorage:
             ) + int(amount_rub)
 
             self._write(data)
+
+    async def try_set_ref(self, user_id: int, ref_id: int) -> bool:
+        if user_id == ref_id:
+            return False
+
+        async with self._lock:
+            data = self._read()
+            uid = str(user_id)
+            rid = int(ref_id)
+
+            if uid not in data:
+                data[uid] = {
+                    "id": user_id,
+                    "username": None,
+                    "first_name": None,
+                    "last_name": None,
+                    "first_seen": None,
+                    "last_seen": None,
+                    "total_purchases": 0,
+                    "total_spent_rub": 0,
+                    "ref": None,
+                }
+
+            # уже есть реферер
+            if data[uid].get("ref") is not None:
+                return False
+
+            # уже покупал
+            if int(data[uid].get("total_spent_rub", 0)) > 0:
+                return False
+
+            data[uid]["ref"] = rid
+            self._write(data)
+            return True
+
+    async def count_invited(self, ref_id: int) -> int:
+        async with self._lock:
+            data = self._read()
+            return sum(1 for u in data.values() if u.get("ref") == ref_id)
+
+    async def get_profile(self, user_id: int) -> dict:
+        async with self._lock:
+            data = self._read()
+            uid = str(user_id)
+            return data.get(uid, {})

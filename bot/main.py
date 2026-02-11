@@ -25,6 +25,7 @@ async def main():
     dp = Dispatcher()
 
     pool = None
+    bot.db_pool = None
 
     # --- PostgreSQL pool (только в PROD) ---
     if IS_PROD:
@@ -39,6 +40,7 @@ async def main():
 
         pool = await create_pool(pg_cfg)
         dp["db_pool"] = pool
+        bot.db_pool = pool
 
         # тест соединения (потом уберём)
         await pool.execute("select 1;")

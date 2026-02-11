@@ -8,6 +8,7 @@ from bot.utils.text import home_text, catalog_text, product_text
 from bot.utils.media import START_IMAGE, CATALOG_IMAGE
 from bot.utils.render import show_photo, show_text
 from bot.data.products import get_category, get_products_by_category, get_product
+from bot.users import user_service
 
 from bot.promos.state import USER_PROMO, AWAITING_PROMO_FOR_PRODUCT, PromoState
 from bot.promos import promo_service
@@ -66,6 +67,29 @@ async def go_home(cq: CallbackQuery):
         allow_answer=False,
     )
 
+@router.callback_query(NavCb.filter(F.page == "profile"))
+async def go_profile(cq: CallbackQuery):
+    await cq.answer()
+
+    pool = getattr(cq.bot, "db_pool", None)
+    profile = await user_service.get_profile(cq.from_user.id, pool=pool)
+    invited_count = await user_service.count_invited(cq.from_user.id, pool=pool)
+
+    ref_id = profile.get("ref")
+
+    await show_photo(
+        message=cq.message,
+        photo_path=PROFILE_IMAGE,
+        caption=profile_text(
+            user_id=cq.from_user.id,
+            username=cq.from_user.username,
+            first_name=cq.from_user.first_name,
+            ref_id=ref_id,
+            invited_count=invited_count,
+        ),
+        reply_markup=profile_kb(),
+        allow_answer=False,
+    )
 
 @router.callback_query(NavCb.filter(F.page == "catalog"))
 async def go_catalog(cq: CallbackQuery):
@@ -263,4 +287,16 @@ async def back_to_payment_groups(cq: CallbackQuery, callback_data: NavCb):
             back_page=back_page,
             back_payload=back_payload,
         )
+    )
+
+@router.callback_query(NavCb.filter(F.page == "ref_link"))
+async def ref_link(cq: CallbackQuery):
+    await cq.answer()
+
+    me = await cq.bot.get_me()
+    ref_url = f"https://t.me/{me.username}?start=ref_{cq.from_user.id}"
+
+    await cq.message.answer(
+        f"🔗 Ваша ссылка для друга:\n\n{ref_url}\n\n"
+        "Если друг ещё не совершал покупки — вы закрепитесь как пригласивший, от чего вам будут начислятся бонусы в размере 10% от покупок всех приглашенных вами друзей!"
     )

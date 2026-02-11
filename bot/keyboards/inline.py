@@ -78,3 +78,10 @@ def chatgpt_plans_kb():
     kb.button(text="⬅ Назад", callback_data=BackCb(page="catalog").pack())
     kb.adjust(1)
     return kb.as_markup()
+
+def profile_kb():
+    kb = InlineKeyboardBuilder()
+    kb.button(text="🔗 Ссылка для друга", callback_data=NavCb(page="ref_link").pack())
+    kb.button(text="⬅ Назад", callback_data=BackCb(page="home").pack())
+    kb.adjust(1)
+    return kb.as_markup()
