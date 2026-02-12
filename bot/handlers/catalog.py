@@ -19,8 +19,8 @@ def _product_back_target(product_id: str) -> tuple[str, str | None]:
     """Куда вести 'Назад' из карточки товара/оплаты.
 
     Правила:
-    - категория gpt -> chatgpt_plans
-    - остальные:
+    - ChatGPT (категория gpt) -> catalog (планов больше нет)
+    - Остальные:
         - если в категории 1 товар -> catalog
         - иначе -> category (payload=category_id)
     """
@@ -28,8 +28,9 @@ def _product_back_target(product_id: str) -> tuple[str, str | None]:
     if not product:
         return ("catalog", None)
 
+    # ✅ ВАЖНО: раньше здесь было chatgpt_plans, из-за этого и вылетало в планы.
     if product.category_id == "gpt":
-        return ("chatgpt_plans", None)
+        return ("catalog", None)
 
     products_in_cat = get_products_by_category(product.category_id)
     if len(products_in_cat) <= 1:
@@ -45,6 +46,7 @@ async def back_handler(cq: CallbackQuery, callback_data: BackCb):
     if callback_data.page == "catalog":
         return await go_catalog(cq)
     if callback_data.page == "chatgpt_plans":
+        # экран не нужен, но оставим безопасно
         return await go_chatgpt_plans(cq)
     if callback_data.page == "category":
         return await go_category(cq, NavCb(page="category", payload=callback_data.payload))
@@ -79,6 +81,7 @@ async def go_catalog(cq: CallbackQuery):
 
 @router.callback_query(NavCb.filter(F.page == "chatgpt_plans"))
 async def go_chatgpt_plans(cq: CallbackQuery):
+    # На всякий случай: экран есть, но Plus там уже не будет (см. inline.py)
     await cq.answer()
     await show_text(
         message=cq.message,

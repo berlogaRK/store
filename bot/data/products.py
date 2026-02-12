@@ -10,7 +10,7 @@ class Category:
 CATEGORIES: List[Category] = [
     Category(
         id="gpt",
-        title="ChatGPT",
+        title="ChatGPT Business",
     ),
     Category(
         id="google_gemini",
@@ -50,17 +50,6 @@ PRODUCTS: List[Product] = [
         image_path="assets/chatgpt.jpg",
     ),
     Product(
-        id="gpt_plus_1m",
-        title="Подписка ChatGPT Plus на месяц",
-        description=(
-        "После покупки запросим необходимые данные и подключим подписку.\n\n"
-        "[Подробное описание товара](https://t.me/itberloga_store/18)"
-        ),
-        price_rub=1299,
-        category_id="gpt",
-        image_path="assets/chatgpt.jpg",
-    ),
-        Product(
         id="google_gemini",
         title="Подписка Google Gemini Pro на месяц",
         description=(
@@ -71,7 +60,7 @@ PRODUCTS: List[Product] = [
         category_id="google_gemini",
         image_path="assets/gemini.jpg",
     ),
-        Product(
+    Product(
         id="perplexity",
         title="Подписка Perplexity Pro на месяц",
         description=(

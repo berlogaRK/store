@@ -24,13 +24,19 @@ def catalog_kb():
     kb = InlineKeyboardBuilder()
 
     for c in CATEGORIES:
-        # В products.py категория ChatGPT имеет id="gpt"
-        if c.id == "gpt":
-            kb.button(text=c.title, callback_data=NavCb(page="chatgpt_plans").pack())
+        if c.id == "chatgpt":
+            # ✅ B-вариант: ChatGPT сразу открывает Business
+            kb.button(
+                text=c.title,
+                callback_data=NavCb(page="product", payload="gpt_business_1m").pack()
+            )
         else:
-            kb.button(text=c.title, callback_data=NavCb(page="category", payload=c.id).pack())
+            kb.button(
+                text=c.title,
+                callback_data=NavCb(page="category", payload=c.id).pack()
+            )
 
-    kb.button(text="⬅ Назад", callback_data=BackCb(page="home").pack())
+    kb.button(text="⬅ Назад", callback_data=NavCb(page="home").pack())
     kb.adjust(1)
     return kb.as_markup()
 
@@ -63,10 +69,12 @@ def info_kb():
 
 
 def chatgpt_plans_kb():
+    """
+    На всякий случай оставляем экран планов,
+    но убираем Plus полностью — только Business.
+    """
     kb = InlineKeyboardBuilder()
     kb.button(text="ChatGPT Business", callback_data=NavCb(page="product", payload="gpt_business_1m").pack())
-    kb.button(text="ChatGPT Plus", callback_data=NavCb(page="product", payload="gpt_plus_1m").pack())
-
     kb.button(text="⬅ Назад", callback_data=BackCb(page="catalog").pack())
     kb.adjust(1)
     return kb.as_markup()
