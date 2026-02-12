@@ -20,6 +20,7 @@ from bot.users import user_service
 from bot.utils.notify import notify_managers
 from bot.utils.tickets import send_ticket_to_group
 
+from bot.bonuses.state import BONUS_USE
 from bot.payments.platega_orders import PlategaOrders, PendingPlategaOrder
 
 # === PG payments (PostgreSQL primary; JSON остается как временный fallback) ===
@@ -47,18 +48,6 @@ platega_orders = PlategaOrders()
 _PENDING_PLATEGA: dict[str, dict] = {}
 
 
-def _compute_price_with_promo(user_id: int, product) -> tuple[int, str | None]:
-    price_rub = product.price_rub
-    promo_code = None
-
-    state = USER_PROMO.get(user_id)
-    if state and state.product_id == product.id and state.final_price_rub is not None:
-        price_rub = state.final_price_rub
-        promo_code = state.promo_code
-
-    return price_rub, promo_code
-
-
 async def _finalize_purchase(
     bot,
     ticket_id: str | None = None,
@@ -69,13 +58,18 @@ async def _finalize_purchase(
     asset: str = "",
     final_price_rub: int | None = None,
     promo_code: str | None = None,
+    bonus_spent: int | None = None,
 ):
+    """
+    Финализация покупки: уведомления, записи в БД, списание/начисление бонусов.
+    Важно: списание бонусов делаем ТОЛЬКО после подтверждённой оплаты.
+    """
     product = get_product(product_id)
 
     if not ticket_id:
         ticket_id = uuid.uuid4().hex[:8].upper()
 
-    # ✅ (пункт 2) если username не пришёл (например, из вебхука) — пробуем достать у Telegram
+    # если username не пришёл (например, из вебхука) — пробуем достать у Telegram
     if not buyer_username and buyer_id:
         try:
             chat = await bot.get_chat(buyer_id)
@@ -83,6 +77,47 @@ async def _finalize_purchase(
         except Exception:
             pass
 
+    # защита от None
+    amount_rub = int(final_price_rub or (product.price_rub if product else 0) or 0)
+    spent = int(bonus_spent or 0)
+
+    # 1) Списать бонусы (если применялись)
+    if spent > 0:
+        await user_service.deduct_bonus(buyer_id, spent, pool=_PG_POOL)
+
+    # 2) Учесть покупку
+    await user_service.add_purchase(buyer_id, amount_rub, pool=_PG_POOL)
+
+    # 3) Начислить бонусы покупателю (10% от финальной суммы)
+    if amount_rub > 0:
+        await user_service.add_bonus(
+            user_id=buyer_id,
+            amount=int(amount_rub * 0.10),
+            pool=_PG_POOL,
+        )
+
+        # 4) Начислить бонусы рефереру (если есть ref)
+        profile = await user_service.get_profile(buyer_id, pool=_PG_POOL)
+        ref_id = profile.get("ref")
+        if ref_id:
+            await user_service.add_bonus(
+                user_id=int(ref_id),
+                amount=int(amount_rub * 0.10),
+                pool=_PG_POOL,
+            )
+
+    # 5) Промокод пометить использованным
+    if promo_code:
+        await promo_service.mark_used(promo_code, buyer_id)
+
+    # 6) Очистить стейты (промо/бонусы) для пользователя
+    USER_PROMO.pop(buyer_id, None)
+    try:
+        BONUS_USE.get(buyer_id, {}).pop(product_id, None)
+    except Exception:
+        pass
+
+    # 7) Сообщение покупателю
     await bot.send_message(
         buyer_id,
         "✅ *Оплата прошла успешно!*\n\n"
@@ -94,19 +129,21 @@ async def _finalize_purchase(
         reply_markup=purchase_done_kb(),
     )
 
+    # 8) Уведомления менеджерам
     paid_time = datetime.now().strftime("%d.%m.%Y %H:%M")
-
     manager_text = (
         "🆕 НОВАЯ ОПЛАТА\n"
         f"🕒 Время: {paid_time}\n\n"
         f"🧾 Тикет: #{ticket_id}\n"
         f"📦 Товар: {product.title if product else 'Неизвестно'}\n"
         f"💰 Сумма: {amount_asset} {asset} "
-        f"(≈ {final_price_rub if final_price_rub else (product.price_rub if product else '—')} ₽)\n"
+        f"(≈ {amount_rub} ₽)\n"
     )
 
     if promo_code:
         manager_text += f"Промокод: {promo_code}\n"
+    if spent > 0:
+        manager_text += f"Списано бонусов: {spent} ₽\n"
 
     manager_text += (
         f"\n👤 Покупатель: @{buyer_username or '—'}\n"
@@ -124,17 +161,8 @@ async def _finalize_purchase(
         asset=str(asset),
         buyer_id=buyer_id,
         buyer_username=buyer_username,
-        price_rub=final_price_rub if final_price_rub else (product.price_rub if product else None),
+        price_rub=amount_rub,
     )
-
-    if promo_code:
-        await promo_service.mark_used(promo_code, buyer_id)
-
-    USER_PROMO.pop(buyer_id, None)
-
-    amount_rub = final_price_rub or (product.price_rub if product else 0)
-    # В PROD у нас есть pool → обновим users в PG; в test/фоллбэке уйдёт в JSON.
-    await user_service.add_purchase(buyer_id, amount_rub, pool=_PG_POOL)
 
 
 async def _poll_platega_status(tx_id: str, bot):
@@ -154,6 +182,8 @@ async def _poll_platega_status(tx_id: str, bot):
     product_id = meta["product_id"]
     promo_code = meta.get("promo_code")
     final_price_rub = meta.get("final_price_rub")
+    bonus_spent = meta.get("bonus_spent", 0)
+
     message_chat_id = meta.get("message_chat_id")
     message_id = meta.get("message_id")
 
@@ -175,17 +205,15 @@ async def _poll_platega_status(tx_id: str, bot):
                 except TelegramBadRequest:
                     pass
 
-            # ✅ (пункт 1) идемпотентность: финализируем только если мы первые отметили paid
+            # идемпотентность: финализируем только если мы первые отметили paid
             pg = _pg_payments()
             if pg:
                 try:
                     first = await pg.mark_paid(uuid.UUID(str(tx_id)))
                 except Exception:
-                    # если не смогли залочить — лучше не дублировать
                     return
 
                 if not first:
-                    # уже финализировали (например, через вебхук)
                     _PENDING_PLATEGA.pop(tx_id, None)
                     platega_orders.pop(tx_id)
                     return
@@ -198,8 +226,9 @@ async def _poll_platega_status(tx_id: str, bot):
                 product_id=product_id,
                 amount_asset=str(final_price_rub or 0),
                 asset="RUB",
-                final_price_rub=final_price_rub,
+                final_price_rub=int(final_price_rub or 0),
                 promo_code=promo_code,
+                bonus_spent=int(bonus_spent or 0),
             )
 
             _PENDING_PLATEGA.pop(tx_id, None)
@@ -244,13 +273,51 @@ async def _poll_platega_status(tx_id: str, bot):
 
 @router.callback_query(PayCb.filter())
 async def pay_handler(cq: CallbackQuery, callback_data: PayCb):
-    # === Вариант A: в test-режиме платежи отключены ===
+    # test-режим: платежи отключены
     if not PAYMENTS_ENABLED:
-        await cq.answer("💤 Оплаты отключены в тестовом режиме.", show_alert=True)
+        # TEST: имитируем успешную оплату сразу
+        product = get_product(callback_data.product_id)
+        if not product:
+            await cq.answer("Товар не найден", show_alert=True)
+            return
+
+        # бонусы 
+        prof = await user_service.get_profile(cq.from_user.id, pool=_PG_POOL)
+        bonus_balance = int(prof.get("bonus_balance", 0) or 0)
+
+        selected = BONUS_USE.get(cq.from_user.id, {}).get(product.id, 0)
+        bonus_spent = min(int(selected), bonus_balance, int(product.price_rub))
+        price_after_bonus = max(int(product.price_rub) - bonus_spent, 0)
+
+        # промо
+        st = USER_PROMO.get(cq.from_user.id)
+        if st and st.product_id == product.id and st.final_price_rub is not None:
+            final_price_rub = int(st.final_price_rub)
+            promo_code = st.promo_code
+        else:
+            final_price_rub = int(price_after_bonus)
+            promo_code = None
+
+        ticket_id = f"TEST-{uuid.uuid4().hex[:6].upper()}"
+
+        await cq.answer("✅ TEST: оплата имитирована", show_alert=True)
+
+        await _finalize_purchase(
+            bot=cq.bot,
+            ticket_id=ticket_id,
+            buyer_id=cq.from_user.id,
+            buyer_username=cq.from_user.username,
+            product_id=product.id,
+            amount_asset=str(final_price_rub),
+            asset="RUB",
+            final_price_rub=final_price_rub,
+            promo_code=promo_code,
+            bonus_spent=bonus_spent,
+        )
         return
 
-    method = PAYMENT_METHODS.get(callback_data.method)
 
+    method = PAYMENT_METHODS.get(callback_data.method)
     if not method:
         await cq.answer("Неизвестный способ оплаты", show_alert=True)
         return
@@ -264,16 +331,22 @@ async def pay_handler(cq: CallbackQuery, callback_data: PayCb):
         await cq.message.answer("Товар не найден", show_alert=True)
         return
 
-    method = PAYMENT_METHODS.get(callback_data.method)
-    if not method:
-        await cq.message.answer("Неизвестный способ оплаты", show_alert=True)
-        return
+    # --- бонусы: выбранная сумма списания ---
+    prof = await user_service.get_profile(cq.from_user.id, pool=_PG_POOL)
+    bonus_balance = int(prof.get("bonus_balance", 0) or 0)
 
-    if not method.enabled:
-        await cq.answer(method.disabled_text or "Способ оплаты недоступен", show_alert=True)
-        return
+    selected = BONUS_USE.get(cq.from_user.id, {}).get(product.id, 0)
+    bonus_spent = min(int(selected), bonus_balance, int(product.price_rub))
+    price_after_bonus = max(int(product.price_rub) - bonus_spent, 0)
 
-    price_rub, promo_code = _compute_price_with_promo(cq.from_user.id, product)
+    # --- промо применяется после бонусов ---
+    st = USER_PROMO.get(cq.from_user.id)
+    if st and st.product_id == product.id and st.final_price_rub is not None:
+        final_price_rub = int(st.final_price_rub)
+        promo_code = st.promo_code
+    else:
+        final_price_rub = int(price_after_bonus)
+        promo_code = None
 
     # === RUB (Platega) ===
     if method.code == "rub":
@@ -285,7 +358,8 @@ async def pay_handler(cq: CallbackQuery, callback_data: PayCb):
             "buyer_id": cq.from_user.id,
             "buyer_username": cq.from_user.username,
             "promo_code": promo_code,
-            "final_price_rub": price_rub,
+            "final_price_rub": final_price_rub,
+            "bonus_spent": bonus_spent,
         })
 
         return_url = "https://t.me/berloga_programmistov"
@@ -293,7 +367,7 @@ async def pay_handler(cq: CallbackQuery, callback_data: PayCb):
 
         from bot.services.platega_pay import platega_pay  # lazy import
         resp = await platega_pay.create_sbp_payment(
-            amount_rub=price_rub,
+            amount_rub=final_price_rub,
             description=f"{product.title} | Ticket #{ticket_id}",
             payload=payload,
             return_url=return_url,
@@ -316,7 +390,7 @@ async def pay_handler(cq: CallbackQuery, callback_data: PayCb):
                 buyer_username=cq.from_user.username,
                 product_id=product.id,
                 promo_code=promo_code,
-                final_price_rub=price_rub,
+                final_price_rub=final_price_rub,
                 created_at=datetime.utcnow().isoformat(),
             )
         )
@@ -327,7 +401,8 @@ async def pay_handler(cq: CallbackQuery, callback_data: PayCb):
             "buyer_username": cq.from_user.username,
             "product_id": product.id,
             "promo_code": promo_code,
-            "final_price_rub": price_rub,
+            "final_price_rub": final_price_rub,
+            "bonus_spent": bonus_spent,
             "message_chat_id": cq.message.chat.id if cq.message else None,
             "message_id": cq.message.message_id if cq.message else None,
         }
@@ -343,7 +418,7 @@ async def pay_handler(cq: CallbackQuery, callback_data: PayCb):
                         user_id=cq.from_user.id,
                         product_id=product.id,
                         promo_code=promo_code,
-                        final_price_rub=price_rub,
+                        final_price_rub=final_price_rub,
                         payment_method="sbp",
                     )
                 )
@@ -356,14 +431,13 @@ async def pay_handler(cq: CallbackQuery, callback_data: PayCb):
             f"💳 *Оплата через {method.title}*\n\n"
             f"📦 Товар: *{product.title}*\n"
         )
-        if promo_code:
-            caption += (
-                f"🏷 Промокод: *{promo_code}*\n"
-                f"💰 Сумма: *{price_rub} ₽* *(со скидкой)*\n\n"
-            )
-        else:
-            caption += f"💰 Сумма: *{price_rub} ₽*\n\n"
 
+        if promo_code:
+            caption += f"🏷 Промокод: *{promo_code}*\n"
+        if bonus_spent > 0:
+            caption += f"🎁 Бонусы: *-{bonus_spent} ₽*\n"
+
+        caption += f"💰 Сумма к оплате: *{final_price_rub} ₽*\n\n"
         caption += (
             "_Ссылка действительна ~15 минут_\n\n"
             "Нажимая «Оплатить», вы соглашаетесь с [условиями сервиса](https://telegra.ph/Dokumenty-servisa-IT-Berloga-Store-01-20).\n"
@@ -380,7 +454,7 @@ async def pay_handler(cq: CallbackQuery, callback_data: PayCb):
     asset = method.asset
 
     try:
-        amount_crypto = await convert(float(price_rub), "RUB", asset)
+        amount_crypto = await convert(float(final_price_rub), "RUB", asset)
         amount_crypto = quantize_amount(amount_crypto, asset)
     except Exception:
         await cq.answer("Не удалось получить курс. Попробуйте ещё раз.", show_alert=True)
@@ -395,7 +469,8 @@ async def pay_handler(cq: CallbackQuery, callback_data: PayCb):
         "buyer_id": cq.from_user.id,
         "buyer_username": cq.from_user.username,
         "promo_code": promo_code,
-        "final_price_rub": price_rub,
+        "final_price_rub": final_price_rub,
+        "bonus_spent": bonus_spent,
     })
 
     invoice = await crypto_pay.create_invoice(
@@ -417,7 +492,7 @@ async def pay_handler(cq: CallbackQuery, callback_data: PayCb):
                     user_id=cq.from_user.id,
                     product_id=product.id,
                     promo_code=promo_code,
-                    final_price_rub=price_rub,
+                    final_price_rub=final_price_rub,
                     payment_method="crypto",
                 )
             )
@@ -432,15 +507,11 @@ async def pay_handler(cq: CallbackQuery, callback_data: PayCb):
     )
 
     if promo_code:
-        caption += (
-            f"🏷 Промокод: *{promo_code}*\n"
-            f"💰 Сумма: *{amount_crypto} {asset}* *(≈ {price_rub} ₽ со скидкой)*\n\n"
-        )
-    else:
-        caption += (
-            f"💰 Сумма: *{amount_crypto} {asset}* *(≈ {product.price_rub} ₽)*\n\n"
-        )
+        caption += f"🏷 Промокод: *{promo_code}*\n"
+    if bonus_spent > 0:
+        caption += f"🎁 Бонусы: *-{bonus_spent} ₽*\n"
 
+    caption += f"💰 Сумма к оплате: *{amount_crypto} {asset}* *(≈ {final_price_rub} ₽)*\n\n"
     caption += (
         "_Курс обновляется каждые 30 сек_\n"
         "_Ссылка действительна в течение 30 минут_\n\n"
@@ -462,10 +533,11 @@ async def on_invoice_paid(invoice, message):
     buyer_username = data.get("buyer_username")
     product_id = data["product_id"]
     promo_code = data.get("promo_code")
-    final_price_rub = data.get("final_price_rub")
+    final_price_rub = int(data.get("final_price_rub") or 0)
+    bonus_spent = int(data.get("bonus_spent") or 0)
     order_id = data.get("order_id")
 
-    # ✅ (пункт 1) для крипты тоже: не дублить финализацию
+    # для крипты тоже: не дублить финализацию
     pg = _pg_payments()
     if pg and order_id:
         try:
@@ -489,4 +561,5 @@ async def on_invoice_paid(invoice, message):
         asset=str(invoice.asset),
         final_price_rub=final_price_rub,
         promo_code=promo_code,
+        bonus_spent=bonus_spent,
     )

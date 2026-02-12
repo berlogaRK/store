@@ -1,8 +1,8 @@
 from aiogram import Router, F
 from aiogram.types import CallbackQuery, Message
 
-from bot.keyboards.callbacks import NavCb, PromoCb, PayGroupCb, BackCb
-from bot.keyboards.inline import home_kb, catalog_kb, category_products_kb, chatgpt_plans_kb
+from bot.keyboards.callbacks import NavCb, PromoCb, PayGroupCb, BackCb, BonusCb
+from bot.keyboards.inline import home_kb, catalog_kb, category_products_kb, chatgpt_plans_kb, profile_kb
 from bot.keyboards.payments import payment_groups_kb, crypto_methods_kb
 from bot.utils.text import home_text, catalog_text, product_text
 from bot.utils.media import START_IMAGE, CATALOG_IMAGE
@@ -12,6 +12,10 @@ from bot.users import user_service
 
 from bot.promos.state import USER_PROMO, AWAITING_PROMO_FOR_PRODUCT, PromoState
 from bot.promos import promo_service
+
+import copy
+from dataclasses import replace
+from bot.bonuses.state import BONUS_USE
 
 router = Router()
 
@@ -76,6 +80,7 @@ async def go_profile(cq: CallbackQuery):
     invited_count = await user_service.count_invited(cq.from_user.id, pool=pool)
 
     ref_id = profile.get("ref")
+    bonus_balance = int(profile.get("bonus_balance", 0) or 0)
 
     await show_photo(
         message=cq.message,
@@ -86,6 +91,7 @@ async def go_profile(cq: CallbackQuery):
             first_name=cq.from_user.first_name,
             ref_id=ref_id,
             invited_count=invited_count,
+            bonus_balance=bonus_balance
         ),
         reply_markup=profile_kb(),
         allow_answer=False,
@@ -125,43 +131,58 @@ async def go_product(cq: CallbackQuery, callback_data: NavCb):
         await show_text(cq.message, "❌ Товар не найден", home_kb(), allow_answer=False)
         return
 
+    # --- бонусы пользователя (баланс + применённые к этому товару) ---
+    pool = getattr(cq.bot, "db_pool", None)
+    profile = await user_service.get_profile(cq.from_user.id, pool=pool)
+    bonus_balance = int(profile.get("bonus_balance", 0) or 0)
+
+    bonus_applied = BONUS_USE.get(cq.from_user.id, {}).get(product.id, 0)
+    bonus_applied = min(int(bonus_applied), bonus_balance, int(product.price_rub))
+    price_after_bonus = max(int(product.price_rub) - bonus_applied, 0)
+
+    # --- промокод  ---
     state = USER_PROMO.get(cq.from_user.id)
     has_promo = bool(state and state.product_id == product.id and state.promo_code)
 
     if has_promo and state.final_price_rub is not None and state.discount_rub is not None:
         price_text = f"{state.final_price_rub} ₽ (скидка {state.discount_rub} ₽, промокод {state.promo_code})"
+        if bonus_applied > 0:
+            price_text += f", бонусы -{bonus_applied} ₽"
     else:
-        price_text = f"{product.price_rub} ₽"
+        if bonus_applied > 0:
+            price_text = f"{price_after_bonus} ₽ (бонусы -{bonus_applied} ₽)"
+        else:
+            price_text = f"{product.price_rub} ₽"
 
     text = product_text(product.title, product.description, price_text)
 
     back_page, back_payload = _product_back_target(product.id)
+
+    kb = payment_groups_kb(
+        product.id,
+        has_promo=has_promo,
+        back_page=back_page,
+        back_payload=back_payload,
+        bonus_balance=bonus_balance,
+        bonus_applied=bonus_applied,
+    )
 
     if getattr(product, "image_path", None):
         await show_photo(
             message=cq.message,
             photo_path=product.image_path,
             caption=text,
-            reply_markup=payment_groups_kb(
-                product.id,
-                has_promo=has_promo,
-                back_page=back_page,
-                back_payload=back_payload,
-            ),
+            reply_markup=kb,
             allow_answer=False,
         )
     else:
         await show_text(
             message=cq.message,
             text=text,
-            reply_markup=payment_groups_kb(
-                product.id,
-                has_promo=has_promo,
-                back_page=back_page,
-                back_payload=back_payload,
-            ),
+            reply_markup=kb,
             allow_answer=False,
         )
+
 
 
 @router.callback_query(PromoCb.filter(F.action == "enter"))
@@ -200,9 +221,16 @@ async def promo_input(message: Message):
         AWAITING_PROMO_FOR_PRODUCT.pop(user_id, None)
         await message.answer("❌ Товар не найден. Откройте карточку товара заново.")
         return
+    
+    bonus_applied = BONUS_USE.get(user_id, {}).get(product.id, 0)
+    bonus_applied = min(int(bonus_applied), int(product.price_rub))
+    price_after_bonus = max(int(product.price_rub) - bonus_applied, 0)
+
+    product_for_promo = replace(product, price_rub=price_after_bonus)
+
 
     try:
-        result = await promo_service.apply(text, user_id, product)
+        result = await promo_service.apply(text, user_id, product_for_promo)
     except Exception as e:
         AWAITING_PROMO_FOR_PRODUCT.pop(user_id, None)
         await message.answer(f"❌ Не удалось применить промокод: {e}")
@@ -300,3 +328,39 @@ async def ref_link(cq: CallbackQuery):
         f"🔗 Ваша ссылка для друга:\n\n{ref_url}\n\n"
         "Если друг ещё не совершал покупки — вы закрепитесь как пригласивший, от чего вам будут начислятся бонусы в размере 10% от покупок всех приглашенных вами друзей!"
     )
+
+@router.callback_query(BonusCb.filter(F.action == "use"))
+async def bonus_use(cq: CallbackQuery, callback_data: BonusCb):
+    await cq.answer()
+
+    pid = callback_data.product_id
+    product = get_product(pid)
+    if not product:
+        return
+
+    pool = getattr(cq.bot, "db_pool", None)
+    profile = await user_service.get_profile(cq.from_user.id, pool=pool)
+    bonus_balance = int(profile.get("bonus_balance", 0) or 0)
+
+    amount = min(bonus_balance, int(product.price_rub))
+    BONUS_USE.setdefault(cq.from_user.id, {})[pid] = amount
+
+    st = USER_PROMO.get(cq.from_user.id)
+    if st and st.product_id == pid:
+        USER_PROMO.pop(cq.from_user.id, None)
+
+    await go_product(cq, NavCb(page="product", payload=pid))
+
+
+@router.callback_query(BonusCb.filter(F.action == "clear"))
+async def bonus_clear(cq: CallbackQuery, callback_data: BonusCb):
+    await cq.answer()
+
+    pid = callback_data.product_id
+    BONUS_USE.get(cq.from_user.id, {}).pop(pid, None)
+
+    st = USER_PROMO.get(cq.from_user.id)
+    if st and st.product_id == pid:
+        USER_PROMO.pop(cq.from_user.id, None)
+
+    await go_product(cq, NavCb(page="product", payload=pid))

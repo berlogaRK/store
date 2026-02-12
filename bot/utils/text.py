@@ -17,6 +17,7 @@ def profile_text(
     first_name: str | None,
     ref_id: int | None,
     invited_count: int,
+    bonus_balance: int,
 ):
     name = first_name or username or "пользователь"
 
@@ -25,7 +26,7 @@ def profile_text(
     return (
         f"👤 *Профиль*\n\n"
         f"Привет, {name}! (ID: `{user_id}`)\n\n"
-        f"Доступные бонусы: \n\n"
+        f"Доступные бонусы: *{bonus_balance} ₽*\n\n"
         f"Вас пригласил: `{ref_line}`\n"
         f"Приглашено друзей: *{invited_count}*\n\n"
         f"[Для чего нужен профиль?](https://t.me/itberloga_store/8)"

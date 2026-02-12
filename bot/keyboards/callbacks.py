@@ -33,3 +33,7 @@ class NewPurchaseCb(CallbackData, prefix="new_purchase"):
 class PayGroupCb(CallbackData, prefix="pay_group"):
     group: str
     product_id: str
+
+class BonusCb(CallbackData, prefix="bonus"):
+    action: str  
+    product_id: str

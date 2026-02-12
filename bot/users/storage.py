@@ -124,3 +124,28 @@ class JsonUserStorage:
             data = self._read()
             uid = str(user_id)
             return data.get(uid, {})
+
+    async def add_bonus(self, user_id: int, amount: int) -> None:
+        async with self._lock:
+            data = self._read()
+            uid = str(user_id)
+
+            if uid not in data:
+                return
+
+            data[uid]["bonus_balance"] = int(
+                data[uid].get("bonus_balance", 0)
+            ) + int(amount)
+
+            self._write(data)
+
+    async def deduct_bonus(self, user_id: int, amount: int) -> None:
+        async with self._lock:
+            data = self._read()
+            uid = str(user_id)
+            if uid not in data:
+                return
+
+            bal = int(data[uid].get("bonus_balance", 0) or 0)
+            data[uid]["bonus_balance"] = max(bal - int(amount), 0)
+            self._write(data)

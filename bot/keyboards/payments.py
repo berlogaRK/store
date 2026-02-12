@@ -1,6 +1,6 @@
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
-from bot.keyboards.callbacks import PayCb, NavCb, NewPurchaseCb, PromoCb, PayGroupCb, BackCb
+from bot.keyboards.callbacks import PayCb, NavCb, NewPurchaseCb, PromoCb, PayGroupCb, BackCb, BonusCb
 from bot.payments.methods import PAYMENT_METHODS
 
 
@@ -10,6 +10,8 @@ def payment_groups_kb(
     has_promo: bool = False,
     back_page: str = "catalog",
     back_payload: str | None = None,
+    bonus_balance: int = 0,
+    bonus_applied: int = 0,
 ):
     """Меню способов оплаты на карточке товара.
 
@@ -17,6 +19,7 @@ def payment_groups_kb(
     """
     kb = InlineKeyboardBuilder()
 
+    # --- способы оплаты ---
     rub = PAYMENT_METHODS.get("rub")
     if rub and rub.enabled:
         kb.button(text=rub.title, callback_data=PayCb(method="rub", product_id=product_id).pack())
@@ -29,6 +32,21 @@ def payment_groups_kb(
     if eu:
         kb.button(text=eu.title, callback_data=PayCb(method="eur", product_id=product_id).pack())
 
+        # --- бонусы ---
+    if bonus_balance > 0:
+        if bonus_applied > 0:
+            kb.button(
+                text=f"❌ Убрать бонусы ({bonus_applied} ₽)",
+                callback_data=BonusCb(action="clear", product_id=product_id).pack(),
+            )
+        else:
+            kb.button(
+                text=f"💰 Использовать бонусы (до {bonus_balance} ₽)",
+                callback_data=BonusCb(action="use", product_id=product_id).pack(),
+            )
+
+
+    # --- промокод ---
     if has_promo:
         kb.button(text="❌ Убрать промокод", callback_data=PromoCb(action="clear", product_id=product_id).pack())
     else:
@@ -37,7 +55,8 @@ def payment_groups_kb(
     kb.button(text="⬅ Назад", callback_data=BackCb(page=back_page, payload=back_payload).pack())
     kb.button(text="🏠 Главная", callback_data=NavCb(page="home").pack())
 
-    kb.adjust(1, 1, 2, 2)
+    # rub (1), crypto+eur (2), promo+bonuses (2), home+back (2)
+    kb.adjust(1, 2, 2, 2)
     return kb.as_markup()
 
 

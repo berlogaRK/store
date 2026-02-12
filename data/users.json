@@ -5,10 +5,11 @@
     "first_name": "robert",
     "last_name": null,
     "first_seen": "2026-02-02T18:26:38.901471",
-    "last_seen": "2026-02-11T17:21:57.279670",
-    "total_purchases": 0,
-    "total_spent_rub": 0,
-    "ref": 1835990982
+    "last_seen": "2026-02-12T22:23:05.417718",
+    "total_purchases": 1,
+    "total_spent_rub": 1260,
+    "ref": 1835990982,
+    "bonus_balance": 126
   },
   "1835990982": {
     "id": 1835990982,
@@ -19,6 +20,7 @@
     "last_seen": "2026-02-09T18:44:48.044328",
     "total_purchases": 0,
     "total_spent_rub": 0,
-    "ref": 944394039
+    "ref": 944394039,
+    "bonus_balance": 126
   }
 }

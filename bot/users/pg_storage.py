@@ -66,3 +66,22 @@ class PgUserStorage:
         async with self.pool.acquire() as conn:
             count = await conn.fetchval(sql, ref_id)
         return int(count or 0)
+
+    async def add_bonus(self, user_id: int, amount: int) -> None:
+        sql = """
+        UPDATE users
+        SET bonus_balance = bonus_balance + $2
+        WHERE id = $1;
+        """
+        async with self.pool.acquire() as conn:
+            await conn.execute(sql, user_id, amount)
+
+    async def deduct_bonus(self, user_id: int, amount: int) -> None:
+        sql = """
+        UPDATE users
+        SET bonus_balance = GREATEST(bonus_balance - $2, 0)
+        WHERE id = $1;
+        """
+        async with self.pool.acquire() as conn:
+            await conn.execute(sql, user_id, amount)
+

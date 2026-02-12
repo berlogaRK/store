@@ -58,3 +58,27 @@ class UserService:
             return await PgUserStorage(pool).count_invited(ref_id)
         except Exception:
             return await self.storage.count_invited(ref_id)
+
+    async def add_bonus(self, user_id: int, amount: int, pool=None):
+        if amount <= 0:
+            return
+
+        if pool is None:
+            return await self.storage.add_bonus(user_id, amount)
+
+        try:
+            return await PgUserStorage(pool).add_bonus(user_id, amount)
+        except Exception:
+            return await self.storage.add_bonus(user_id, amount)
+
+    async def deduct_bonus(self, user_id: int, amount: int, pool=None):
+        if amount <= 0:
+            return
+
+        if pool is None:
+            return await self.storage.deduct_bonus(user_id, amount)
+
+        try:
+            return await PgUserStorage(pool).deduct_bonus(user_id, amount)
+        except Exception:
+            return await self.storage.deduct_bonus(user_id, amount)

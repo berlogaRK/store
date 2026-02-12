@@ -1,1 +1,11 @@
-{}
+{
+    "TEST": {
+        "type": "percent",
+        "value": 10,
+        "active": true,
+        "expires_at": null,
+        "max_uses": null,
+        "per_user_limit": 1,
+        "allowed_products": null
+    }
+}
