@@ -16,6 +16,7 @@ from bot.promos import promo_service
 import copy
 from dataclasses import replace
 from bot.bonuses.state import BONUS_USE
+from bot.utils.text import profile_text
 
 router = Router()
 
