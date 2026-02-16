@@ -304,17 +304,45 @@ async def open_crypto_methods(cq: CallbackQuery, callback_data: PayGroupCb):
 async def back_to_payment_groups(cq: CallbackQuery, callback_data: NavCb):
     await cq.answer()
 
-    state = USER_PROMO.get(cq.from_user.id)
-    has_promo = bool(state and state.product_id == callback_data.payload)
+    pid = callback_data.payload
+    if not pid:
+        return
 
-    back_page, back_payload = _product_back_target(callback_data.payload)
+    # промо-стейт
+    state = USER_PROMO.get(cq.from_user.id)
+    has_promo = bool(state and state.product_id == pid and state.promo_code)
+
+    back_page, back_payload = _product_back_target(pid)
+
+    # --- бонусы: баланс + применённые к этому товару ---
+    pool = getattr(cq.bot, "db_pool", None)
+    profile = await user_service.get_profile(cq.from_user.id, pool=pool)
+    bonus_balance = int(profile.get("bonus_balance", 0) or 0)
+
+    # сколько пользователь выбрал применить (в рублях)
+    bonus_applied = BONUS_USE.get(cq.from_user.id, {}).get(pid, 0)
+    bonus_applied = int(bonus_applied or 0)
+
+    product = get_product(pid)
+    max_by_price = int(product.price_rub) if product else 0
+
+    bonus_applied = min(bonus_applied, bonus_balance, max_by_price)
+    if bonus_applied > 0:
+        BONUS_USE.setdefault(cq.from_user.id, {})[pid] = bonus_applied
+    else:
+        try:
+            BONUS_USE.get(cq.from_user.id, {}).pop(pid, None)
+        except Exception:
+            pass
 
     await cq.message.edit_reply_markup(
         reply_markup=payment_groups_kb(
-            callback_data.payload,
+            pid,
             has_promo=has_promo,
             back_page=back_page,
             back_payload=back_payload,
+            bonus_balance=bonus_balance,
+            bonus_applied=bonus_applied,
         )
     )
 
