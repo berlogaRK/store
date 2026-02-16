@@ -52,7 +52,7 @@ class PgUserStorage:
     
     async def get_profile(self, user_id: int) -> dict | None:
         sql = """
-        SELECT id, username, first_name, last_name, total_purchases, total_spent_rub, ref
+        SELECT id, username, first_name, last_name, total_purchases, total_spent_rub, ref, bonus_balance
         FROM users
         WHERE id = $1;
         """
