@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 from typing import List
+from bot.utils.media import PERPLEXITY_IMAGE, GEMINI_IMAGE, GPT_IMAGE
 
 
 @dataclass(frozen=True)
@@ -47,7 +48,7 @@ PRODUCTS: List[Product] = [
         ),
         price_rub=1499,
         category_id="gpt",
-        image_path="assets/chatgpt.jpg",
+        image_path=GPT_IMAGE,
     ),
     Product(
         id="google_gemini",
@@ -58,7 +59,7 @@ PRODUCTS: List[Product] = [
         ),
         price_rub=1099,
         category_id="google_gemini",
-        image_path="assets/gemini.jpg",
+        image_path=GEMINI_IMAGE,
     ),
     Product(
         id="perplexity",
@@ -67,9 +68,9 @@ PRODUCTS: List[Product] = [
         "После покупки запросим необходимые данные и подключим подписку.\n\n"
         "[Подробное описание товара](https://t.me/itberloga_store/20)"
         ),
-        price_rub=999,
+        price_rub=1099,
         category_id="perplexity",
-        image_path="assets/perplexity.jpg",
+        image_path=PERPLEXITY_IMAGE,
     )
 ]
 
