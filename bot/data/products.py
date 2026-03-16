@@ -46,7 +46,7 @@ PRODUCTS: List[Product] = [
         "После покупки запросим необходимые данные и подключим подписку.\n\n"
         "[Подробное описание товара](https://t.me/itberloga_store/4)"
         ),
-        price_rub=1499,
+        price_rub=1399,
         category_id="gpt",
         image_path=GPT_IMAGE,
     ),
