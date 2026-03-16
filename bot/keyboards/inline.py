@@ -4,7 +4,7 @@ from bot.keyboards.callbacks import NavCb, BuyCb, BackCb
 from bot.data.products import get_products_by_category, CATEGORIES
 
 REVIEWS_CHANNEL_URL = "https://t.me/itberloga_reviews"
-SUPPORT_USER_URL = "https://t.me/raxlin4ik"
+SUPPORT_USER_URL = "https://t.me/itberloga_manager"
 
 PRIVACY_URL = "https://telegra.ph/Politika-konfidencialnosti-01-18-75"
 TERMS_URL = "https://telegra.ph/Polzovatelskoe-soglashenie-01-18-50"
