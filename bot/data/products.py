@@ -41,12 +41,12 @@ class Product:
 PRODUCTS: List[Product] = [
     Product(
         id="gpt_business_1m",
-        title="Подписка ChatGPT Business на месяц",
+        title="Пока не доступно", #"Подписка ChatGPT Business на месяц"
         description=(
-        "После покупки запросим необходимые данные и подключим подписку.\n\n"
+        "Постараемся возобновить продажу товара как можно скорее.\n\n" #После покупки запросим необходимые данные и подключим подписку.
         "[Подробное описание товара](https://t.me/itberloga_store/4)"
         ),
-        price_rub=1399,
+        price_rub=9999,
         category_id="gpt",
         image_path=GPT_IMAGE,
     ),
