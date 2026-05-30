@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 from typing import List
-from bot.utils.media import PERPLEXITY_IMAGE, GEMINI_IMAGE, GPT_IMAGE
+from bot.utils.media import PERPLEXITY_IMAGE, GEMINI_IMAGE, GPT_IMAGE, CLAUDE_IMAGE
 
 
 @dataclass(frozen=True)
@@ -11,7 +11,11 @@ class Category:
 CATEGORIES: List[Category] = [
     Category(
         id="gpt",
-        title="ChatGPT Business",
+        title="ChatGPT Plus",
+    ),
+    Category(
+        id="cld",
+        title="Claude Pro",
     ),
     Category(
         id="google_gemini",
@@ -41,14 +45,25 @@ class Product:
 PRODUCTS: List[Product] = [
     Product(
         id="gpt_business_1m",
-        title="Пока не доступно", #"Подписка ChatGPT Business на месяц"
+        title="Подписка ChatGPT Plus на месяц",
         description=(
         "Постараемся возобновить продажу товара как можно скорее.\n\n" #После покупки запросим необходимые данные и подключим подписку.
         "[Подробное описание товара](https://t.me/itberloga_store/4)"
         ),
-        price_rub=9999,
+        price_rub=1899,
         category_id="gpt",
         image_path=GPT_IMAGE,
+    ),
+    Product(
+        id="claude_pro",
+        title="Подписка Claude Pro на месяц",
+        description=(
+        "После покупки запросим необходимые данные и подключим подписку.\n\n"
+        "[Подробное описание товара](https://t.me/itberloga_store/5)"
+        ),
+        price_rub=1899,
+        category_id="cld",
+        image_path=CLAUDE_IMAGE,
     ),
     Product(
         id="google_gemini",
