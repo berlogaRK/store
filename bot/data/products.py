@@ -44,11 +44,11 @@ class Product:
 
 PRODUCTS: List[Product] = [
     Product(
-        id="gpt_business_1m",
+        id="gpt_plus",
         title="Подписка ChatGPT Plus на месяц",
         description=(
         "После покупки запросим необходимые данные и подключим подписку.\n\n" 
-        "[Подробное описание товара](https://t.me/itberloga_store/4)"
+        "[Подробное описание товара](https://t.me/itberloga_store/18)"
         ),
         price_rub=1899,
         category_id="gpt",
@@ -59,7 +59,7 @@ PRODUCTS: List[Product] = [
         title="Подписка Claude Pro на месяц",
         description=(
         "После покупки запросим необходимые данные и подключим подписку.\n\n"
-        "[Подробное описание товара](https://t.me/itberloga_store/5)"
+        "[Подробное описание товара](https://t.me/itberloga_store/29)"
         ),
         price_rub=1899,
         category_id="cld",
