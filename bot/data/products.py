@@ -72,7 +72,7 @@ PRODUCTS: List[Product] = [
         "После покупки запросим необходимые данные и подключим подписку.\n\n"
         "[Подробное описание товара](https://t.me/itberloga_store/5)"
         ),
-        price_rub=1099,
+        price_rub=1250,
         category_id="google_gemini",
         image_path=GEMINI_IMAGE,
     ),
@@ -83,7 +83,7 @@ PRODUCTS: List[Product] = [
         "После покупки запросим необходимые данные и подключим подписку.\n\n"
         "[Подробное описание товара](https://t.me/itberloga_store/20)"
         ),
-        price_rub=1099,
+        price_rub=1250,
         category_id="perplexity",
         image_path=PERPLEXITY_IMAGE,
     )
