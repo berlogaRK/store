@@ -50,7 +50,7 @@ PRODUCTS: List[Product] = [
         "После покупки запросим необходимые данные и подключим подписку.\n\n" 
         "[Подробное описание товара](https://t.me/itberloga_store/18)"
         ),
-        price_rub=1899,
+        price_rub=2100,
         category_id="gpt",
         image_path=GPT_IMAGE,
     ),
@@ -83,7 +83,7 @@ PRODUCTS: List[Product] = [
         "После покупки запросим необходимые данные и подключим подписку.\n\n"
         "[Подробное описание товара](https://t.me/itberloga_store/20)"
         ),
-        price_rub=1250,
+        price_rub=1400,
         category_id="perplexity",
         image_path=PERPLEXITY_IMAGE,
     )
