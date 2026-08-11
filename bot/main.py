@@ -7,6 +7,7 @@ from bot.config import load_config, APP_ENV, IS_PROD, PAYMENTS_ENABLED
 from bot.handlers.start import router as start_router
 from bot.handlers.catalog import router as catalog_router
 from bot.handlers import payments, info
+from bot.handlers.broadcast import router as broadcast_router
 
 from bot.middlewares.users import UserTrackingMiddleware
 
@@ -57,6 +58,9 @@ async def main():
     dp.callback_query.middleware(UserTrackingMiddleware())
 
     # --- routers ---
+    # broadcast первым: его catch-all активен только для менеджера,
+    # ожидающего пост после /broadcast
+    dp.include_router(broadcast_router)
     dp.include_router(start_router)
     dp.include_router(catalog_router)
     dp.include_router(payments.router)

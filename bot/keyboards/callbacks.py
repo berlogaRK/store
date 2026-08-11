@@ -35,5 +35,10 @@ class PayGroupCb(CallbackData, prefix="pay_group"):
     product_id: str
 
 class BonusCb(CallbackData, prefix="bonus"):
-    action: str  
+    action: str
     product_id: str
+
+
+class BroadcastCb(CallbackData, prefix="bcast"):
+    action: str  # "confirm" | "cancel"
+    msg_id: int

@@ -82,3 +82,19 @@ class UserService:
             return await PgUserStorage(pool).deduct_bonus(user_id, amount)
         except Exception:
             return await self.storage.deduct_bonus(user_id, amount)
+
+    async def get_broadcast_ids(self, pool: asyncpg.Pool | None = None) -> list[int]:
+        # без мягкого fallback: в проде рассылка по JSON ушла бы не тем людям —
+        # лучше ошибка админу, чем "успешная" рассылка в пустоту
+        if pool is None:
+            return await self.storage.get_broadcast_ids()
+        return await PgUserStorage(pool).get_broadcast_ids()
+
+    async def mark_blocked(self, user_id: int, pool: asyncpg.Pool | None = None) -> None:
+        if pool is None:
+            return await self.storage.mark_blocked(user_id)
+
+        try:
+            await PgUserStorage(pool).mark_blocked(user_id)
+        except Exception:
+            pass

@@ -85,3 +85,28 @@ class PgUserStorage:
         async with self.pool.acquire() as conn:
             await conn.execute(sql, user_id, amount)
 
+    _ADD_IS_BLOCKED = """
+    ALTER TABLE users
+    ADD COLUMN IF NOT EXISTS is_blocked boolean NOT NULL DEFAULT false;
+    """
+
+    async def get_broadcast_ids(self) -> list[int]:
+        sql = "SELECT id FROM users WHERE is_blocked = false ORDER BY id;"
+        async with self.pool.acquire() as conn:
+            try:
+                rows = await conn.fetch(sql)
+            except asyncpg.UndefinedColumnError:
+                # колонки ещё нет (старая схема) — добавляем и повторяем
+                await conn.execute(self._ADD_IS_BLOCKED)
+                rows = await conn.fetch(sql)
+        return [int(r["id"]) for r in rows]
+
+    async def mark_blocked(self, user_id: int) -> None:
+        sql = "UPDATE users SET is_blocked = true WHERE id = $1;"
+        async with self.pool.acquire() as conn:
+            try:
+                await conn.execute(sql, user_id)
+            except asyncpg.UndefinedColumnError:
+                await conn.execute(self._ADD_IS_BLOCKED)
+                await conn.execute(sql, user_id)
+

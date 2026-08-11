@@ -149,3 +149,22 @@ class JsonUserStorage:
             bal = int(data[uid].get("bonus_balance", 0) or 0)
             data[uid]["bonus_balance"] = max(bal - int(amount), 0)
             self._write(data)
+
+    async def get_broadcast_ids(self) -> list:
+        async with self._lock:
+            data = self._read()
+            return [
+                int(u["id"])
+                for u in data.values()
+                if not u.get("is_blocked")
+            ]
+
+    async def mark_blocked(self, user_id: int) -> None:
+        async with self._lock:
+            data = self._read()
+            uid = str(user_id)
+            if uid not in data:
+                return
+
+            data[uid]["is_blocked"] = True
+            self._write(data)
